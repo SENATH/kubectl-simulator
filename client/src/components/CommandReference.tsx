@@ -14,19 +14,20 @@ interface Command {
 const commands: Command[] = [
   {
     name: "get",
-    category: "Basic",
+    category: "Read",
     description: "Display one or many resources",
     examples: [
       "kubectl get nodes",
       "kubectl get pods",
       "kubectl get pods --all-namespaces",
       "kubectl get deployments -n production",
-      "kubectl get services -o yaml"
+      "kubectl get services -o yaml",
+      "kubectl get all"
     ]
   },
   {
     name: "describe",
-    category: "Basic",
+    category: "Read",
     description: "Show details of a specific resource",
     examples: [
       "kubectl describe node node-1",
@@ -35,7 +36,7 @@ const commands: Command[] = [
   },
   {
     name: "logs",
-    category: "Basic",
+    category: "Read",
     description: "Print container logs for a pod",
     examples: [
       "kubectl logs nginx-deployment-7d4c8f6d9b-hx2lk",
@@ -43,21 +44,53 @@ const commands: Command[] = [
     ]
   },
   {
+    name: "create",
+    category: "Write",
+    description: "Create a new resource",
+    examples: [
+      "kubectl create namespace my-app",
+      "kubectl create deployment my-app --image=nginx --replicas=3",
+      "kubectl create deployment api --image=node:18 -n production",
+      "kubectl create service clusterip my-service --port=80",
+      "kubectl create pod test-pod --image=busybox"
+    ]
+  },
+  {
+    name: "delete",
+    category: "Write",
+    description: "Delete resources by name",
+    examples: [
+      "kubectl delete pod nginx-deployment-7d4c8f6d9b-hx2lk",
+      "kubectl delete deployment my-app",
+      "kubectl delete service my-service -n default",
+      "kubectl delete namespace my-app"
+    ]
+  },
+  {
+    name: "scale",
+    category: "Write",
+    description: "Set a new size for a deployment",
+    examples: [
+      "kubectl scale deployment nginx-deployment --replicas=5",
+      "kubectl scale deployment/api-server --replicas=3 -n production"
+    ]
+  },
+  {
     name: "version",
-    category: "Cluster",
+    category: "Info",
     description: "Display client and server version",
     examples: ["kubectl version"]
   },
   {
     name: "cluster-info",
-    category: "Cluster",
+    category: "Info",
     description: "Display cluster information",
     examples: ["kubectl cluster-info"]
   },
   {
     name: "config",
-    category: "Cluster",
-    description: "Modify kubeconfig files",
+    category: "Info",
+    description: "View kubeconfig information",
     examples: ["kubectl config view"]
   }
 ];

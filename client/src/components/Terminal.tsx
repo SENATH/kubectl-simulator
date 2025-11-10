@@ -106,15 +106,30 @@ export function Terminal({ className = "" }: TerminalProps) {
         {history.length === 0 && (
           <div className="text-muted-foreground mb-4">
             <p>Welcome to kubectl simulator!</p>
-            <p className="mt-2">This simulates a 3-node Kubernetes cluster.</p>
-            <p className="mt-1">Try commands like:</p>
-            <ul className="mt-2 ml-4 space-y-1">
-              <li>• kubectl get nodes</li>
-              <li>• kubectl get pods --all-namespaces</li>
-              <li>• kubectl describe node node-1</li>
-              <li>• kubectl version</li>
-              <li>• kubectl help</li>
-            </ul>
+            <p className="mt-2">This simulates a 3-node Kubernetes cluster with read/write operations.</p>
+            <p className="mt-2 font-semibold text-foreground">Try these commands:</p>
+            
+            <div className="mt-3 space-y-2">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">View resources:</p>
+                <code className="text-xs bg-muted/50 px-2 py-1 rounded block">kubectl get nodes</code>
+                <code className="text-xs bg-muted/50 px-2 py-1 rounded block mt-1">kubectl get pods --all-namespaces</code>
+              </div>
+              
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Create resources:</p>
+                <code className="text-xs bg-muted/50 px-2 py-1 rounded block">kubectl create namespace my-app</code>
+                <code className="text-xs bg-muted/50 px-2 py-1 rounded block mt-1">kubectl create deployment web --image=nginx --replicas=3</code>
+              </div>
+              
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Scale & manage:</p>
+                <code className="text-xs bg-muted/50 px-2 py-1 rounded block">kubectl scale deployment nginx-deployment --replicas=5</code>
+                <code className="text-xs bg-muted/50 px-2 py-1 rounded block mt-1">kubectl delete pod redis-master-0</code>
+              </div>
+            </div>
+            
+            <p className="mt-3 text-xs">Type <code className="bg-muted/50 px-1 rounded">kubectl help</code> for more commands.</p>
           </div>
         )}
 

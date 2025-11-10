@@ -127,6 +127,14 @@ export class KubectlSimulator {
           return this.handleGet(args.slice(1));
         case "describe":
           return this.handleDescribe(args.slice(1));
+        case "create":
+          return this.handleCreate(args.slice(1));
+        case "delete":
+          return this.handleDelete(args.slice(1));
+        case "apply":
+          return this.handleApply(args.slice(1));
+        case "scale":
+          return this.handleScale(args.slice(1));
         case "version":
           return this.handleVersion();
         case "cluster-info":
@@ -137,12 +145,9 @@ export class KubectlSimulator {
           return this.handleLogs(args.slice(1));
         case "exec":
           return { output: "Error: Interactive commands are not supported in this simulator", isError: true };
-        case "apply":
-        case "create":
-        case "delete":
         case "edit":
         case "patch":
-          return { output: `Error: Mutating operations (${command}) are not supported in this read-only simulator`, isError: true };
+          return { output: `Note: ${command} command simulation is limited. Use create/delete/apply for full control.`, isError: false };
         case "help":
         case "--help":
         case "-h":
@@ -162,9 +167,11 @@ export class KubectlSimulator {
 
     const resource = args[0];
     const flags = this.parseFlags(args.slice(1));
-    const namespace = flags.namespace || flags.n || "default";
-    const outputFormat = flags.output || flags.o || "table";
-    const allNamespaces = flags["all-namespaces"] || flags.A;
+    const namespace = typeof flags.namespace === 'string' ? flags.namespace : 
+                     typeof flags.n === 'string' ? flags.n : "default";
+    const outputFormat = typeof flags.output === 'string' ? flags.output :
+                        typeof flags.o === 'string' ? flags.o : "table";
+    const allNamespaces = flags["all-namespaces"] === true || flags.A === true;
 
     switch (resource) {
       case "nodes":
@@ -192,6 +199,344 @@ export class KubectlSimulator {
       default:
         return { output: `Error: the server doesn't have a resource type "${resource}"`, isError: true };
     }
+  }
+
+  private handleCreate(args: string[]): { output: string; isError: boolean } {
+    if (args.length === 0) {
+      return { output: "Error: must specify type of resource to create", isError: true };
+    }
+
+    const resource = args[0];
+    const flags = this.parseFlags(args.slice(1));
+    const namespace = typeof flags.namespace === 'string' ? flags.namespace :
+                     typeof flags.n === 'string' ? flags.n : "default";
+
+    switch (resource) {
+      case "namespace":
+      case "ns":
+        return this.createNamespace(args[1]);
+      case "deployment":
+      case "deploy":
+        return this.createDeployment(args[1], namespace, flags);
+      case "service":
+      case "svc":
+        return this.createService(args[1], namespace, flags);
+      case "pod":
+        return this.createPod(args[1], namespace, flags);
+      default:
+        return { output: `Error: the server doesn't support resource type "${resource}"`, isError: true };
+    }
+  }
+
+  private handleDelete(args: string[]): { output: string; isError: boolean } {
+    if (args.length < 2) {
+      return { output: "Error: You must specify the type of resource to delete and its name", isError: true };
+    }
+
+    const resource = args[0];
+    const name = args[1];
+    const flags = this.parseFlags(args.slice(2));
+    const namespace = typeof flags.namespace === 'string' ? flags.namespace :
+                     typeof flags.n === 'string' ? flags.n : "default";
+
+    switch (resource) {
+      case "namespace":
+      case "ns":
+        return this.deleteNamespace(name);
+      case "pod":
+      case "pods":
+      case "po":
+        return this.deletePod(name, namespace);
+      case "deployment":
+      case "deployments":
+      case "deploy":
+        return this.deleteDeployment(name, namespace);
+      case "service":
+      case "services":
+      case "svc":
+        return this.deleteService(name, namespace);
+      default:
+        return { output: `Error: the server doesn't support resource type "${resource}"`, isError: true };
+    }
+  }
+
+  private handleApply(args: string[]): { output: string; isError: boolean } {
+    const flags = this.parseFlags(args);
+    
+    if (flags.f || flags.filename) {
+      return {
+        output: "Note: File-based apply is simulated. Use create commands for specific resources.",
+        isError: false
+      };
+    }
+
+    return { output: "Error: must specify -f, --filename for apply", isError: true };
+  }
+
+  private handleScale(args: string[]): { output: string; isError: boolean } {
+    if (args.length < 2) {
+      return { output: "Error: You must specify resource type/name and --replicas", isError: true };
+    }
+
+    const resourceName = args[0];
+    const flags = this.parseFlags(args.slice(1));
+    const replicas = typeof flags.replicas === 'string' ? parseInt(flags.replicas) : undefined;
+    const namespace = typeof flags.namespace === 'string' ? flags.namespace :
+                     typeof flags.n === 'string' ? flags.n : "default";
+
+    if (replicas === undefined || isNaN(replicas)) {
+      return { output: "Error: --replicas is required and must be a number", isError: true };
+    }
+
+    const [resourceType, name] = resourceName.includes('/') 
+      ? resourceName.split('/') 
+      : ['deployment', resourceName];
+
+    if (resourceType === "deployment" || resourceType === "deploy") {
+      const deployment = this.deployments.find(d => d.name === name && d.namespace === namespace);
+      
+      if (!deployment) {
+        return { output: `Error from server (NotFound): deployments.apps "${name}" not found`, isError: true };
+      }
+
+      deployment.ready = `${replicas}/${replicas}`;
+      deployment.upToDate = replicas;
+      deployment.available = replicas;
+
+      const podPrefix = name;
+      const existingPods = this.pods.filter(p => p.name.startsWith(podPrefix) && p.namespace === namespace);
+      
+      if (replicas > existingPods.length) {
+        for (let i = existingPods.length; i < replicas; i++) {
+          const newPod: K8sPod = {
+            name: `${podPrefix}-${this.generateHash()}-${this.generateHash(5)}`,
+            namespace,
+            ready: "1/1",
+            status: "Running",
+            restarts: 0,
+            age: "0s",
+            ip: this.generateIP(),
+            node: this.getRandomWorkerNode()
+          };
+          this.pods.push(newPod);
+        }
+      } else if (replicas < existingPods.length) {
+        const toRemove = existingPods.slice(replicas);
+        this.pods = this.pods.filter(p => !toRemove.includes(p));
+      }
+
+      return {
+        output: `deployment.apps/${name} scaled`,
+        isError: false
+      };
+    }
+
+    return { output: `Error: scaling for resource type "${resourceType}" is not supported`, isError: true };
+  }
+
+  private createNamespace(name: string): { output: string; isError: boolean } {
+    if (!name) {
+      return { output: "Error: name is required for namespace creation", isError: true };
+    }
+
+    if (this.namespaces.find(ns => ns.name === name)) {
+      return { output: `Error from server (AlreadyExists): namespaces "${name}" already exists`, isError: true };
+    }
+
+    this.namespaces.push({
+      name,
+      status: "Active",
+      age: "0s"
+    });
+
+    return { output: `namespace/${name} created`, isError: false };
+  }
+
+  private createDeployment(name: string, namespace: string, flags: Record<string, string | boolean>): { output: string; isError: boolean } {
+    if (!name) {
+      return { output: "Error: name is required for deployment creation", isError: true };
+    }
+
+    const image = typeof flags.image === 'string' ? flags.image : undefined;
+    const replicas = typeof flags.replicas === 'string' ? parseInt(flags.replicas) : 1;
+
+    if (!image) {
+      return { output: "Error: --image is required for deployment creation", isError: true };
+    }
+
+    if (this.deployments.find(d => d.name === name && d.namespace === namespace)) {
+      return { output: `Error from server (AlreadyExists): deployments.apps "${name}" already exists`, isError: true };
+    }
+
+    if (!this.namespaces.find(ns => ns.name === namespace)) {
+      return { output: `Error from server (NotFound): namespace "${namespace}" not found`, isError: true };
+    }
+
+    this.deployments.push({
+      name,
+      namespace,
+      ready: `${replicas}/${replicas}`,
+      upToDate: replicas,
+      available: replicas,
+      age: "0s"
+    });
+
+    for (let i = 0; i < replicas; i++) {
+      this.pods.push({
+        name: `${name}-${this.generateHash()}-${this.generateHash(5)}`,
+        namespace,
+        ready: "1/1",
+        status: "Running",
+        restarts: 0,
+        age: "0s",
+        ip: this.generateIP(),
+        node: this.getRandomWorkerNode()
+      });
+    }
+
+    return { output: `deployment.apps/${name} created`, isError: false };
+  }
+
+  private createService(name: string, namespace: string, flags: Record<string, string | boolean>): { output: string; isError: boolean } {
+    if (!name) {
+      return { output: "Error: name is required for service creation", isError: true };
+    }
+
+    const port = typeof flags.port === 'string' ? flags.port : "80";
+    const serviceType = typeof flags.type === 'string' ? flags.type : "ClusterIP";
+
+    if (this.services.find(s => s.name === name && s.namespace === namespace)) {
+      return { output: `Error from server (AlreadyExists): services "${name}" already exists`, isError: true };
+    }
+
+    if (!this.namespaces.find(ns => ns.name === namespace)) {
+      return { output: `Error from server (NotFound): namespace "${namespace}" not found`, isError: true };
+    }
+
+    this.services.push({
+      name,
+      namespace,
+      type: serviceType,
+      clusterIp: this.generateClusterIP(),
+      externalIp: serviceType === "LoadBalancer" ? this.generateExternalIP() : "<none>",
+      ports: `${port}/TCP`,
+      age: "0s"
+    });
+
+    return { output: `service/${name} created`, isError: false };
+  }
+
+  private createPod(name: string, namespace: string, flags: Record<string, string | boolean>): { output: string; isError: boolean } {
+    if (!name) {
+      return { output: "Error: name is required for pod creation", isError: true };
+    }
+
+    const image = typeof flags.image === 'string' ? flags.image : undefined;
+
+    if (!image) {
+      return { output: "Error: --image is required for pod creation", isError: true };
+    }
+
+    if (this.pods.find(p => p.name === name && p.namespace === namespace)) {
+      return { output: `Error from server (AlreadyExists): pods "${name}" already exists`, isError: true };
+    }
+
+    if (!this.namespaces.find(ns => ns.name === namespace)) {
+      return { output: `Error from server (NotFound): namespace "${namespace}" not found`, isError: true };
+    }
+
+    this.pods.push({
+      name,
+      namespace,
+      ready: "1/1",
+      status: "Running",
+      restarts: 0,
+      age: "0s",
+      ip: this.generateIP(),
+      node: this.getRandomWorkerNode()
+    });
+
+    return { output: `pod/${name} created`, isError: false };
+  }
+
+  private deleteNamespace(name: string): { output: string; isError: boolean } {
+    const index = this.namespaces.findIndex(ns => ns.name === name);
+    
+    if (index === -1) {
+      return { output: `Error from server (NotFound): namespaces "${name}" not found`, isError: true };
+    }
+
+    if (["default", "kube-system", "kube-public", "kube-node-lease"].includes(name)) {
+      return { output: `Error: cannot delete system namespace "${name}"`, isError: true };
+    }
+
+    this.namespaces.splice(index, 1);
+    this.pods = this.pods.filter(p => p.namespace !== name);
+    this.deployments = this.deployments.filter(d => d.namespace !== name);
+    this.services = this.services.filter(s => s.namespace !== name);
+
+    return { output: `namespace "${name}" deleted`, isError: false };
+  }
+
+  private deletePod(name: string, namespace: string): { output: string; isError: boolean } {
+    const index = this.pods.findIndex(p => p.name === name && p.namespace === namespace);
+    
+    if (index === -1) {
+      return { output: `Error from server (NotFound): pods "${name}" not found`, isError: true };
+    }
+
+    this.pods.splice(index, 1);
+    return { output: `pod "${name}" deleted`, isError: false };
+  }
+
+  private deleteDeployment(name: string, namespace: string): { output: string; isError: boolean } {
+    const index = this.deployments.findIndex(d => d.name === name && d.namespace === namespace);
+    
+    if (index === -1) {
+      return { output: `Error from server (NotFound): deployments.apps "${name}" not found`, isError: true };
+    }
+
+    this.deployments.splice(index, 1);
+    this.pods = this.pods.filter(p => !p.name.startsWith(name) || p.namespace !== namespace);
+
+    return { output: `deployment.apps "${name}" deleted`, isError: false };
+  }
+
+  private deleteService(name: string, namespace: string): { output: string; isError: boolean } {
+    const index = this.services.findIndex(s => s.name === name && s.namespace === namespace);
+    
+    if (index === -1) {
+      return { output: `Error from server (NotFound): services "${name}" not found`, isError: true };
+    }
+
+    this.services.splice(index, 1);
+    return { output: `service "${name}" deleted`, isError: false };
+  }
+
+  private generateHash(length: number = 10): string {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
+
+  private generateIP(): string {
+    return `10.244.${Math.floor(Math.random() * 3)}.${Math.floor(Math.random() * 254) + 1}`;
+  }
+
+  private generateClusterIP(): string {
+    return `10.96.${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}`;
+  }
+
+  private generateExternalIP(): string {
+    return `203.0.113.${Math.floor(Math.random() * 254) + 1}`;
+  }
+
+  private getRandomWorkerNode(): string {
+    const workers = ["node-2", "node-3"];
+    return workers[Math.floor(Math.random() * workers.length)];
   }
 
   private handleDescribe(args: string[]): { output: string; isError: boolean } {
@@ -298,7 +643,15 @@ users:
 Find more information at: https://kubernetes.io/docs/reference/kubectl/
 
 Basic Commands (Beginner):
+  create         Create a resource from a file or stdin
   get            Display one or many resources
+  delete         Delete resources
+  
+Basic Commands (Intermediate):
+  apply          Apply a configuration to a resource
+  scale          Set a new size for a deployment
+  
+Troubleshooting and Debugging Commands:
   describe       Show details of a specific resource or group of resources
   logs           Print the logs for a container in a pod
   
