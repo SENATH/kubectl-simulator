@@ -991,14 +991,20 @@ Events:                      <none>`,
       const arg = args[i];
       
       if (arg.startsWith("--")) {
-        const key = arg.slice(2);
-        const nextArg = args[i + 1];
+        const flagPart = arg.slice(2);
         
-        if (nextArg && !nextArg.startsWith("-")) {
-          flags[key] = nextArg;
-          i++;
+        if (flagPart.includes("=")) {
+          const [key, value] = flagPart.split("=", 2);
+          flags[key] = value;
         } else {
-          flags[key] = true;
+          const nextArg = args[i + 1];
+          
+          if (nextArg && !nextArg.startsWith("-")) {
+            flags[flagPart] = nextArg;
+            i++;
+          } else {
+            flags[flagPart] = true;
+          }
         }
       } else if (arg.startsWith("-") && arg.length === 2) {
         const key = arg.slice(1);
