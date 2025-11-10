@@ -1,18 +1,57 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-});
+export interface K8sNode {
+  name: string;
+  status: "Ready" | "NotReady";
+  roles: string;
+  age: string;
+  version: string;
+  internalIp: string;
+  osImage: string;
+  kernelVersion: string;
+  containerRuntime: string;
+}
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
+export interface K8sPod {
+  name: string;
+  namespace: string;
+  ready: string;
+  status: string;
+  restarts: number;
+  age: string;
+  ip?: string;
+  node?: string;
+}
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export interface K8sDeployment {
+  name: string;
+  namespace: string;
+  ready: string;
+  upToDate: number;
+  available: number;
+  age: string;
+}
+
+export interface K8sService {
+  name: string;
+  namespace: string;
+  type: string;
+  clusterIp: string;
+  externalIp: string;
+  ports: string;
+  age: string;
+}
+
+export interface K8sNamespace {
+  name: string;
+  status: string;
+  age: string;
+}
+
+export interface CommandHistoryEntry {
+  id: string;
+  command: string;
+  output: string;
+  timestamp: number;
+  isError: boolean;
+}
