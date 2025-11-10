@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { KubectlSimulator } from "@/lib/kubectl-simulator";
+import { useSimulator } from "@/lib/simulator-context";
 import type { CommandHistoryEntry } from "@shared/schema";
 import { Terminal as TerminalIcon } from "lucide-react";
 
@@ -11,7 +11,7 @@ export function Terminal({ className = "" }: TerminalProps) {
   const [history, setHistory] = useState<CommandHistoryEntry[]>([]);
   const [currentInput, setCurrentInput] = useState("");
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [simulator] = useState(() => new KubectlSimulator());
+  const { simulator } = useSimulator();
   const inputRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const commandHistory = useRef<string[]>([]);

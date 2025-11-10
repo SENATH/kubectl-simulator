@@ -6,6 +6,7 @@ export class KubectlSimulator {
   private deployments: K8sDeployment[];
   private services: K8sService[];
   private namespaces: K8sNamespace[];
+  private stateChangeCallbacks: (() => void)[] = [];
 
   constructor() {
     this.nodes = this.initializeNodes();
@@ -13,6 +14,24 @@ export class KubectlSimulator {
     this.pods = this.initializePods();
     this.deployments = this.initializeDeployments();
     this.services = this.initializeServices();
+  }
+
+  onStateChange(callback: () => void) {
+    this.stateChangeCallbacks.push(callback);
+  }
+
+  private notifyStateChange() {
+    this.stateChangeCallbacks.forEach(cb => cb());
+  }
+
+  getState() {
+    return {
+      nodes: this.nodes,
+      pods: this.pods,
+      deployments: this.deployments,
+      services: this.services,
+      namespaces: this.namespaces
+    };
   }
 
   private initializeNodes(): K8sNode[] {
@@ -274,12 +293,28 @@ export class KubectlSimulator {
   }
 
   private handleScale(args: string[]): { output: string; isError: boolean } {
-    if (args.length < 2) {
+    if (args.length === 0) {
       return { output: "Error: You must specify resource type/name and --replicas", isError: true };
     }
 
-    const resourceName = args[0];
-    const flags = this.parseFlags(args.slice(1));
+    let resourceType: string;
+    let name: string;
+    let remainingArgs: string[];
+
+    if (args[0].includes('/')) {
+      [resourceType, name] = args[0].split('/');
+      remainingArgs = args.slice(1);
+    } else if (args.length >= 2 && !args[1].startsWith('-')) {
+      resourceType = args[0];
+      name = args[1];
+      remainingArgs = args.slice(2);
+    } else {
+      resourceType = 'deployment';
+      name = args[0];
+      remainingArgs = args.slice(1);
+    }
+
+    const flags = this.parseFlags(remainingArgs);
     const replicas = typeof flags.replicas === 'string' ? parseInt(flags.replicas) : undefined;
     const namespace = typeof flags.namespace === 'string' ? flags.namespace :
                      typeof flags.n === 'string' ? flags.n : "default";
@@ -287,10 +322,6 @@ export class KubectlSimulator {
     if (replicas === undefined || isNaN(replicas)) {
       return { output: "Error: --replicas is required and must be a number", isError: true };
     }
-
-    const [resourceType, name] = resourceName.includes('/') 
-      ? resourceName.split('/') 
-      : ['deployment', resourceName];
 
     if (resourceType === "deployment" || resourceType === "deploy") {
       const deployment = this.deployments.find(d => d.name === name && d.namespace === namespace);
@@ -325,6 +356,8 @@ export class KubectlSimulator {
         this.pods = this.pods.filter(p => !toRemove.includes(p));
       }
 
+      this.notifyStateChange();
+      
       return {
         output: `deployment.apps/${name} scaled`,
         isError: false
@@ -349,6 +382,7 @@ export class KubectlSimulator {
       age: "0s"
     });
 
+    this.notifyStateChange();
     return { output: `namespace/${name} created`, isError: false };
   }
 
@@ -394,6 +428,7 @@ export class KubectlSimulator {
       });
     }
 
+    this.notifyStateChange();
     return { output: `deployment.apps/${name} created`, isError: false };
   }
 
@@ -423,6 +458,7 @@ export class KubectlSimulator {
       age: "0s"
     });
 
+    this.notifyStateChange();
     return { output: `service/${name} created`, isError: false };
   }
 
@@ -456,6 +492,7 @@ export class KubectlSimulator {
       node: this.getRandomWorkerNode()
     });
 
+    this.notifyStateChange();
     return { output: `pod/${name} created`, isError: false };
   }
 
@@ -475,6 +512,7 @@ export class KubectlSimulator {
     this.deployments = this.deployments.filter(d => d.namespace !== name);
     this.services = this.services.filter(s => s.namespace !== name);
 
+    this.notifyStateChange();
     return { output: `namespace "${name}" deleted`, isError: false };
   }
 
@@ -486,6 +524,7 @@ export class KubectlSimulator {
     }
 
     this.pods.splice(index, 1);
+    this.notifyStateChange();
     return { output: `pod "${name}" deleted`, isError: false };
   }
 
@@ -499,6 +538,7 @@ export class KubectlSimulator {
     this.deployments.splice(index, 1);
     this.pods = this.pods.filter(p => !p.name.startsWith(name) || p.namespace !== namespace);
 
+    this.notifyStateChange();
     return { output: `deployment.apps "${name}" deleted`, isError: false };
   }
 
@@ -510,6 +550,7 @@ export class KubectlSimulator {
     }
 
     this.services.splice(index, 1);
+    this.notifyStateChange();
     return { output: `service "${name}" deleted`, isError: false };
   }
 
@@ -677,6 +718,14 @@ Use "kubectl <command> --help" for more information about a given command.`,
       return { output: this.toYaml({ items: this.nodes }), isError: false };
     }
 
+    if (format === "wide") {
+      const header = "NAME     STATUS   ROLES           AGE   VERSION    INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME";
+      const rows = this.nodes.map(n => 
+        `${n.name.padEnd(8)} ${n.status.padEnd(8)} ${n.roles.padEnd(15)} ${n.age.padEnd(5)} ${n.version.padEnd(10)} ${n.internalIp.padEnd(15)} <none>        ${n.osImage.padEnd(20)} ${n.kernelVersion.padEnd(19)} ${n.containerRuntime}`
+      );
+      return { output: [header, ...rows].join("\n"), isError: false };
+    }
+
     const header = "NAME     STATUS   ROLES           AGE   VERSION";
     const rows = this.nodes.map(n => 
       `${n.name.padEnd(8)} ${n.status.padEnd(8)} ${n.roles.padEnd(15)} ${n.age.padEnd(5)} ${n.version}`
@@ -696,6 +745,20 @@ Use "kubectl <command> --help" for more information about a given command.`,
     }
 
     const hasNamespace = namespace === undefined;
+    
+    if (format === "wide") {
+      const header = hasNamespace 
+        ? "NAMESPACE     NAME                                      READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES"
+        : "NAME                                      READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES";
+      
+      const rows = filtered.map(p => {
+        const base = `${p.name.padEnd(41)} ${p.ready.padEnd(7)} ${p.status.padEnd(9)} ${String(p.restarts).padEnd(10)} ${p.age.padEnd(5)} ${(p.ip || '<none>').padEnd(14)} ${(p.node || '<none>').padEnd(10)} <none>           <none>`;
+        return hasNamespace ? `${p.namespace.padEnd(13)} ${base}` : base;
+      });
+
+      return { output: [header, ...rows].join("\n"), isError: false };
+    }
+
     const header = hasNamespace 
       ? "NAMESPACE     NAME                                      READY   STATUS    RESTARTS   AGE"
       : "NAME                                      READY   STATUS    RESTARTS   AGE";
