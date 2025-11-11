@@ -7,6 +7,8 @@ export class KubectlSimulator {
   private deployments: K8sDeployment[];
   private services: K8sService[];
   private namespaces: K8sNamespace[];
+  private crds: K8sCrd[];
+  private customResources: K8sCustomResource[];
   private helmReleases: HelmRelease[];
   private stateChangeCallbacks: (() => void)[] = [];
 
@@ -17,6 +19,8 @@ export class KubectlSimulator {
     this.pods = this.initializePods();
     this.deployments = this.initializeDeployments();
     this.services = this.initializeServices();
+    this.crds = [];
+    this.customResources = [];
     this.helmReleases = [];
   }
 
@@ -34,7 +38,9 @@ export class KubectlSimulator {
       pods: this.pods,
       deployments: this.deployments,
       services: this.services,
-      namespaces: this.namespaces
+      namespaces: this.namespaces,
+      crds: this.crds,
+      customResources: this.customResources
     };
   }
 
@@ -302,6 +308,10 @@ export class KubectlSimulator {
     const outputFormat = typeof flags.output === 'string' ? flags.output :
                         typeof flags.o === 'string' ? flags.o : "table";
     const allNamespaces = flags["all-namespaces"] === true || flags.A === true;
+
+    if (resource === "crd" || resource === "crds" || resource === "customresourcedefinition" || resource === "customresourcedefinitions") {
+      return this.formatCrds(outputFormat);
+    }
 
     switch (resource) {
       case "nodes":
@@ -784,6 +794,34 @@ users:
 2024-11-10T10:23:17.567Z INFO Server listening on port 8080
 2024-11-10T10:24:32.891Z INFO Health check passed
 2024-11-10T10:25:48.123Z INFO Processing request GET /api/status`,
+      isError: false
+    };
+  }
+
+  private formatCrds(format: string): { output: string; isError: boolean } {
+    if (format === "json") {
+      return { output: JSON.stringify({ items: this.crds }, null, 2), isError: false };
+    }
+
+    if (format === "yaml") {
+      return { output: this.toYaml({ items: this.crds }), isError: false };
+    }
+
+    if (this.crds.length === 0) {
+      return {
+        output: "No resources found",
+        isError: false
+      };
+    }
+
+    // Both "wide" and default "table" format show the same columns for CRDs
+    const header = "NAME                                      AGE";
+    const rows = this.crds.map(crd => {
+      return `${crd.name.padEnd(41)} ${this.formatAge(crd.creationTimestamp)}`;
+    });
+
+    return {
+      output: [header, ...rows].join("\n"),
       isError: false
     };
   }
