@@ -82,6 +82,14 @@ Preferred communication style: Simple, everyday language.
 - Supports flags: --namespace, --version, --create-namespace, --timeout, --wait, --set
 - Auto-creates appropriate pods, deployments, and services based on chart type
 
+**Curl Operations** (OpenChoreo mode only):
+- **curl [URL]**: Simulates HTTP requests with realistic output
+- **curl [URL] | bash**: Downloads and executes installation scripts
+- Supports common flags: -fsSL, -s, --silent, -f, --fail
+- Pipeline variants: bash, sh, bash -s, sh -, bash -e, etc.
+- Script registry for OpenChoreo installation workflows
+- Graceful fallback for unknown URLs with mock responses
+
 **OpenChoreo Chart Simulations**:
 - **Cilium CNI** (cilium chart): Creates cilium pods in cilium namespace, marks nodes Ready
 - **Control Plane** (openchoreo-control-plane chart): Creates controller-manager, api-server, and cert-manager pods/deployments
