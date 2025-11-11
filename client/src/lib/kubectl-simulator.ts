@@ -308,9 +308,39 @@ export class KubectlSimulator {
     const outputFormat = typeof flags.output === 'string' ? flags.output :
                         typeof flags.o === 'string' ? flags.o : "table";
     const allNamespaces = flags["all-namespaces"] === true || flags.A === true;
+    
+    const hasExplicitNamespace = typeof flags.namespace === 'string' || typeof flags.n === 'string';
+    if (allNamespaces && hasExplicitNamespace) {
+      return {
+        output: "Error: a resource cannot be retrieved by name across all namespaces",
+        isError: true
+      };
+    }
+    
+    const resourceName = this.extractResourceName(args.slice(1));
 
     if (resource === "crd" || resource === "crds" || resource === "customresourcedefinition" || resource === "customresourcedefinitions") {
       return this.formatCrds(outputFormat);
+    }
+
+    if (resource === "organizations" || resource === "organization" || resource === "org") {
+      return this.formatCustomResources("Organization", undefined, outputFormat, resourceName);
+    }
+
+    if (resource === "projects" || resource === "project") {
+      return this.formatCustomResources("Project", allNamespaces ? undefined : namespace, outputFormat, resourceName);
+    }
+
+    if (resource === "components" || resource === "component") {
+      return this.formatCustomResources("Component", allNamespaces ? undefined : namespace, outputFormat, resourceName);
+    }
+
+    if (resource === "builds" || resource === "build") {
+      return this.formatCustomResources("Build", allNamespaces ? undefined : namespace, outputFormat, resourceName);
+    }
+
+    if (resource === "deployableartifacts" || resource === "deployableartifact") {
+      return this.formatCustomResources("DeployableArtifact", allNamespaces ? undefined : namespace, outputFormat, resourceName);
     }
 
     switch (resource) {
@@ -824,6 +854,71 @@ users:
       output: [header, ...rows].join("\n"),
       isError: false
     };
+  }
+
+  private formatCustomResources(kind: string, namespace: string | undefined, format: string, resourceName?: string): { output: string; isError: boolean } {
+    const crd = this.crds.find(c => c.kind === kind);
+    
+    if (!crd) {
+      return {
+        output: `error: the server doesn't have a resource type "${kind.toLowerCase()}s"`,
+        isError: true
+      };
+    }
+
+    let filtered = this.customResources.filter(r => r.kind === kind);
+    
+    if (crd.scope === "Namespaced" && namespace !== undefined) {
+      filtered = filtered.filter(r => r.namespace === namespace);
+    }
+
+    if (resourceName) {
+      filtered = filtered.filter(r => r.name === resourceName);
+      
+      if (filtered.length === 0) {
+        const namespaceMsg = crd.scope === "Namespaced" && namespace 
+          ? ` in namespace "${namespace}"`
+          : "";
+        return {
+          output: `Error from server (NotFound): ${crd.plural}.${crd.group} "${resourceName}" not found${namespaceMsg}`,
+          isError: true
+        };
+      }
+    }
+
+    if (format === "json") {
+      const output = resourceName && filtered.length === 1 
+        ? JSON.stringify(filtered[0], null, 2)
+        : JSON.stringify({ items: filtered }, null, 2);
+      return { output, isError: false };
+    }
+
+    if (format === "yaml") {
+      const output = resourceName && filtered.length === 1
+        ? this.toYaml(filtered[0])
+        : this.toYaml({ items: filtered });
+      return { output, isError: false };
+    }
+
+    if (filtered.length === 0) {
+      const msg = namespace && crd.scope === "Namespaced" 
+        ? `No resources found in ${namespace} namespace.`
+        : "No resources found";
+      return { output: msg, isError: false };
+    }
+
+    const hasNamespace = crd.scope === "Namespaced" && namespace === undefined && !resourceName;
+    
+    const header = hasNamespace
+      ? "NAMESPACE     NAME                AGE"
+      : "NAME                AGE";
+
+    const rows = filtered.map(r => {
+      const base = `${r.name.padEnd(19)} ${this.formatAge(r.creationTimestamp)}`;
+      return hasNamespace ? `${(r.namespace || 'default').padEnd(13)} ${base}` : base;
+    });
+
+    return { output: [header, ...rows].join("\n"), isError: false };
   }
 
   private handleHelp(): { output: string; isError: boolean } {
@@ -1775,6 +1870,29 @@ Run 'kubectl get nodes' to verify cluster status.`,
     }
     
     return flags;
+  }
+
+  private extractResourceName(args: string[]): string | undefined {
+    const skipNext = new Set<number>();
+    
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+      
+      if (arg.startsWith("--")) {
+        const flagPart = arg.slice(2);
+        if (!flagPart.includes("=") && i + 1 < args.length && !args[i + 1].startsWith("-")) {
+          skipNext.add(i + 1);
+        }
+      } else if (arg.startsWith("-") && arg.length === 2) {
+        if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
+          skipNext.add(i + 1);
+        }
+      } else if (!arg.startsWith("-") && !skipNext.has(i)) {
+        return arg;
+      }
+    }
+    
+    return undefined;
   }
 
   private toYaml(obj: any, indent = 0): string {
