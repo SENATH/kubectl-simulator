@@ -2,7 +2,13 @@
 
 ## Overview
 
-This is an interactive web-based kubectl command simulator that allows users to practice Kubernetes commands in a simulated 3-node cluster environment with full read/write capabilities. The application provides a terminal interface that mimics the behavior of kubectl commands without requiring an actual Kubernetes cluster. Users can create, delete, scale, and manage resources in a realistic learning environment where changes persist throughout their session. It's designed as a learning and practice tool with a focus on terminal authenticity and developer-friendly UX.
+This is an interactive web-based kubectl command simulator that allows users to practice Kubernetes commands in a simulated 3-node cluster environment with full read/write capabilities. The application provides a terminal interface that mimics the behavior of kubectl commands without requiring an actual Kubernetes cluster. Users can create, delete, scale, and manage resources in a realistic learning environment where changes persist throughout their session. 
+
+The simulator offers two distinct modes:
+- **Basic Kubernetes Simulator**: Standard kubectl operations on a 3-node cluster with basic Kubernetes resources
+- **OpenChoreo IDP Simulator**: Advanced mode with Helm command support for simulating OpenChoreo platform installation following official documentation (sections 2-4)
+
+The terminal functions as a bash-compatible shell supporting basic Linux commands (clear, ls, pwd, cd, mv, cp). It's designed as a learning and practice tool with a focus on terminal authenticity and developer-friendly UX.
 
 ## User Preferences
 
@@ -25,8 +31,9 @@ Preferred communication style: Simple, everyday language.
 - Component Structure: Modular components following atomic design principles
 
 **Key Components**:
+- **ModeSelector**: Initial screen for choosing between Basic and OpenChoreo IDP simulator modes
 - **Terminal**: Interactive command-line interface with command history and input handling
-- **ClusterOverview**: Displays simulated cluster status, nodes, and resource information
+- **ClusterOverview**: Displays simulated cluster status, nodes, and resource information (updates live as Helm charts are installed)
 - **CommandReference**: Searchable reference guide for kubectl commands with examples
 
 **Rationale**: React with Vite provides fast development cycles and optimal production builds. Wouter is chosen for minimal bundle size. TanStack Query handles caching and synchronization concerns. shadcn/ui provides accessible, customizable components while maintaining design consistency.
@@ -50,20 +57,39 @@ Preferred communication style: Simple, everyday language.
 ### Kubernetes Simulation Engine
 
 **Architecture**: Client-side simulation engine (KubectlSimulator class)
-- Maintains mutable simulated state for nodes, pods, deployments, services, and namespaces
-- Parses kubectl command syntax and generates appropriate responses
-- Provides realistic output formatting matching actual kubectl behavior
+- Maintains mutable simulated state for nodes, pods, deployments, services, namespaces, and Helm releases
+- Accepts SimulatorMode parameter ("basic" or "openchoreo") at initialization
+- Parses kubectl and Helm command syntax and generates appropriate responses
+- Provides realistic output formatting matching actual kubectl and Helm behavior
 - Supports full CRUD operations: create, delete, scale, and read operations
 - State changes persist during the user session, providing realistic feedback
+- Triggers state change callbacks to update UI components (ClusterOverview) when resources are modified
 
-**Supported Operations**:
+**Mode-Specific Features**:
+- **Basic Mode**: Standard kubectl simulator with 3-node cluster, basic Kubernetes resources only
+- **OpenChoreo Mode**: All basic features plus Helm command support for simulating OpenChoreo IDP platform installation
+
+**Kubectl Operations**:
 - **Read Operations**: get, describe, logs, version, cluster-info, config
 - **Write Operations**: create (namespace, deployment, service, pod), delete (all resource types), scale (deployments)
 - **Output Formats**: table (default), JSON, YAML
+- **Bash Commands**: clear, ls, pwd, cd, mv, cp
 
-**Data Models**: TypeScript interfaces for K8s resources (K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace)
+**Helm Operations** (OpenChoreo mode only):
+- **helm version**: Shows Helm version information
+- **helm install**: Installs Helm charts with namespace creation, resource simulation
+- **helm list**: Lists all installed Helm releases
+- Supports flags: --namespace, --version, --create-namespace, --timeout, --wait, --set
+- Auto-creates appropriate pods, deployments, and services based on chart type
 
-**Rationale**: Client-side simulation eliminates server dependencies and latency, providing instant command execution. Mutable state allows users to experiment with create/delete/scale operations and see realistic results, making it an effective learning tool. This approach prioritizes learning and practice over production-realistic architecture.
+**OpenChoreo Chart Simulations**:
+- **Cilium CNI** (cilium chart): Creates cilium pods in cilium namespace, marks nodes Ready
+- **Control Plane** (openchoreo-control-plane chart): Creates controller-manager, api-server, and cert-manager pods/deployments
+- **Data Plane** (openchoreo-data-plane chart): Creates vault, csi-driver, gateway, registry, redis, envoy, and fluent-bit pods
+
+**Data Models**: TypeScript interfaces for K8s resources (K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace, HelmRelease, SimulatorMode)
+
+**Rationale**: Client-side simulation eliminates server dependencies and latency, providing instant command execution. Mode-based initialization allows targeted learning experiences. Mutable state allows users to experiment with create/delete/scale operations and see realistic results. Helm integration enables users to practice OpenChoreo platform installation workflows. This approach prioritizes learning and practice over production-realistic architecture.
 
 ### Design Patterns
 
