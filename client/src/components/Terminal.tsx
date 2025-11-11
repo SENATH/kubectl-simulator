@@ -25,6 +25,11 @@ export function Terminal({ className = "" }: TerminalProps) {
   const executeCommand = (command: string) => {
     const { output, isError } = simulator.executeCommand(command);
     
+    if (output === "CLEAR_TERMINAL") {
+      setHistory([]);
+      return;
+    }
+    
     const entry: CommandHistoryEntry = {
       id: `${Date.now()}-${Math.random()}`,
       command,

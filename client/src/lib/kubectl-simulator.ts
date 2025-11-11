@@ -130,6 +130,41 @@ export class KubectlSimulator {
       return { output: "", isError: false };
     }
 
+    const parts = trimmed.split(/\s+/);
+    const firstCommand = parts[0];
+
+    if (firstCommand === "clear") {
+      return { output: "CLEAR_TERMINAL", isError: false };
+    }
+
+    if (firstCommand === "ls") {
+      return {
+        output: "kubectl-simulator  user-data  tmp  home",
+        isError: false
+      };
+    }
+
+    if (firstCommand === "pwd") {
+      return {
+        output: "/home/user",
+        isError: false
+      };
+    }
+
+    if (firstCommand === "cd") {
+      return {
+        output: "",
+        isError: false
+      };
+    }
+
+    if (firstCommand === "mv" || firstCommand === "cp") {
+      return {
+        output: `${firstCommand}: simulated filesystem - changes not persisted`,
+        isError: false
+      };
+    }
+
     if (!trimmed.startsWith("kubectl")) {
       return {
         output: `bash: ${trimmed.split(" ")[0]}: command not found`,
@@ -137,8 +172,12 @@ export class KubectlSimulator {
       };
     }
 
-    const args = trimmed.slice(7).trim().split(/\s+/);
+    const args = trimmed.slice(7).trim().split(/\s+/).filter(arg => arg.length > 0);
     const command = args[0];
+
+    if (!command || command === "") {
+      return this.handleHelp();
+    }
 
     try {
       switch (command) {
