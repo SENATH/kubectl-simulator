@@ -94,6 +94,7 @@ Preferred communication style: Simple, everyday language.
 - **Cilium CNI** (cilium chart): Creates cilium pods in cilium namespace, marks nodes Ready
 - **Control Plane** (openchoreo-control-plane chart): Creates controller-manager, api-server, and cert-manager pods/deployments
 - **Data Plane** (openchoreo-data-plane chart): Creates vault, csi-driver, gateway, registry, redis, envoy, and fluent-bit pods
+- **Build Plane** (openchoreo-build-plane chart): Creates argo-workflow-controller pod/deployment for CI/CD capabilities
 
 **Data Models**: TypeScript interfaces for K8s resources (K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace, HelmRelease, SimulatorMode)
 

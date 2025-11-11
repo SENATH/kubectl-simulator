@@ -1259,6 +1259,28 @@ Thank you for installing ${chartName}!`,
         });
       });
     }
+
+    if (chartName.includes('build-plane')) {
+      this.pods.push({
+        name: `argo-workflow-controller-${Math.random().toString(36).substring(7)}`,
+        namespace,
+        ready: "1/1",
+        status: "Running",
+        restarts: 0,
+        age: "0s",
+        ip: `10.244.3.${Math.floor(Math.random() * 200) + 10}`,
+        node: "openchoreo-worker"
+      });
+
+      this.deployments.push({
+        name: "argo-workflow-controller",
+        namespace,
+        ready: "1/1",
+        upToDate: 1,
+        available: 1,
+        age: "0s"
+      });
+    }
   }
 
   private handleCurl(command: string): { output: string; isError: boolean } {
