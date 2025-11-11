@@ -4,12 +4,12 @@ export interface K8sNode {
   name: string;
   status: "Ready" | "NotReady";
   roles: string;
-  age: string;
   version: string;
   internalIp: string;
   osImage: string;
   kernelVersion: string;
   containerRuntime: string;
+  creationTimestamp: number;
 }
 
 export interface K8sPod {
@@ -18,9 +18,9 @@ export interface K8sPod {
   ready: string;
   status: string;
   restarts: number;
-  age: string;
   ip?: string;
   node?: string;
+  creationTimestamp: number;
 }
 
 export interface K8sDeployment {
@@ -29,7 +29,7 @@ export interface K8sDeployment {
   ready: string;
   upToDate: number;
   available: number;
-  age: string;
+  creationTimestamp: number;
 }
 
 export interface K8sService {
@@ -39,13 +39,37 @@ export interface K8sService {
   clusterIp: string;
   externalIp: string;
   ports: string;
-  age: string;
+  creationTimestamp: number;
 }
 
 export interface K8sNamespace {
   name: string;
   status: string;
-  age: string;
+  creationTimestamp: number;
+}
+
+export interface K8sCrd {
+  name: string;
+  group: string;
+  version: string;
+  kind: string;
+  plural: string;
+  singular: string;
+  scope: "Namespaced" | "Cluster";
+  installedBy?: string;
+  creationTimestamp: number;
+}
+
+export interface K8sCustomResource {
+  kind: string;
+  apiVersion: string;
+  metadata: {
+    name: string;
+    namespace?: string;
+    creationTimestamp: number;
+  };
+  spec?: Record<string, any>;
+  status?: Record<string, any>;
 }
 
 export interface CommandHistoryEntry {

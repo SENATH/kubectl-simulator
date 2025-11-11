@@ -1,4 +1,4 @@
-import type { K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace, HelmRelease, SimulatorMode } from "@shared/schema";
+import type { K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace, K8sCrd, K8sCustomResource, HelmRelease, SimulatorMode } from "@shared/schema";
 
 export class KubectlSimulator {
   private mode: SimulatorMode;
@@ -38,92 +38,138 @@ export class KubectlSimulator {
     };
   }
 
+  private formatAge(creationTimestamp: number): string {
+    const seconds = Math.floor((Date.now() - creationTimestamp) / 1000);
+    const MINUTE = 60;
+    const HOUR = 60 * MINUTE;
+    const DAY = 24 * HOUR;
+    const YEAR = 365 * DAY;
+    
+    if (seconds < MINUTE) {
+      return `${seconds}s`;
+    } else if (seconds < HOUR) {
+      const m = Math.floor(seconds / MINUTE);
+      const s = seconds % MINUTE;
+      return s ? `${m}m${s}s` : `${m}m`;
+    } else if (seconds < DAY) {
+      const h = Math.floor(seconds / HOUR);
+      const m = Math.floor((seconds % HOUR) / MINUTE);
+      return m ? `${h}h${m}m` : `${h}h`;
+    } else if (seconds < YEAR) {
+      const d = Math.floor(seconds / DAY);
+      const h = Math.floor((seconds % DAY) / HOUR);
+      return h ? `${d}d${h}h` : `${d}d`;
+    } else {
+      const y = Math.floor(seconds / YEAR);
+      const d = Math.floor((seconds % YEAR) / DAY);
+      return d ? `${y}y${d}d` : `${y}y`;
+    }
+  }
+
   private initializeNodes(): K8sNode[] {
+    const fortyFiveDaysAgo = Date.now() - (45 * 24 * 60 * 60 * 1000);
     return [
       {
         name: "node-1",
         status: "Ready",
         roles: "control-plane",
-        age: "45d",
         version: "v1.28.3",
         internalIp: "192.168.1.10",
         osImage: "Ubuntu 22.04.3 LTS",
         kernelVersion: "5.15.0-88-generic",
-        containerRuntime: "containerd://1.7.2"
+        containerRuntime: "containerd://1.7.2",
+        creationTimestamp: fortyFiveDaysAgo
       },
       {
         name: "node-2",
         status: "Ready",
         roles: "worker",
-        age: "45d",
         version: "v1.28.3",
         internalIp: "192.168.1.11",
         osImage: "Ubuntu 22.04.3 LTS",
         kernelVersion: "5.15.0-88-generic",
-        containerRuntime: "containerd://1.7.2"
+        containerRuntime: "containerd://1.7.2",
+        creationTimestamp: fortyFiveDaysAgo
       },
       {
         name: "node-3",
         status: "Ready",
         roles: "worker",
-        age: "45d",
         version: "v1.28.3",
         internalIp: "192.168.1.12",
         osImage: "Ubuntu 22.04.3 LTS",
         kernelVersion: "5.15.0-88-generic",
-        containerRuntime: "containerd://1.7.2"
+        containerRuntime: "containerd://1.7.2",
+        creationTimestamp: fortyFiveDaysAgo
       }
     ];
   }
 
   private initializeNamespaces(): K8sNamespace[] {
+    const fortyFiveDaysAgo = Date.now() - (45 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
     return [
-      { name: "default", status: "Active", age: "45d" },
-      { name: "kube-system", status: "Active", age: "45d" },
-      { name: "kube-public", status: "Active", age: "45d" },
-      { name: "kube-node-lease", status: "Active", age: "45d" },
-      { name: "production", status: "Active", age: "30d" },
-      { name: "staging", status: "Active", age: "30d" }
+      { name: "default", status: "Active", creationTimestamp: fortyFiveDaysAgo },
+      { name: "kube-system", status: "Active", creationTimestamp: fortyFiveDaysAgo },
+      { name: "kube-public", status: "Active", creationTimestamp: fortyFiveDaysAgo },
+      { name: "kube-node-lease", status: "Active", creationTimestamp: fortyFiveDaysAgo },
+      { name: "production", status: "Active", creationTimestamp: thirtyDaysAgo },
+      { name: "staging", status: "Active", creationTimestamp: thirtyDaysAgo }
     ];
   }
 
   private initializePods(): K8sPod[] {
+    const fiveDaysAgo = Date.now() - (5 * 24 * 60 * 60 * 1000);
+    const twelveDaysAgo = Date.now() - (12 * 24 * 60 * 60 * 1000);
+    const eighteenDaysAgo = Date.now() - (18 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const fortyFiveDaysAgo = Date.now() - (45 * 24 * 60 * 60 * 1000);
     return [
-      { name: "nginx-deployment-7d4c8f6d9b-hx2lk", namespace: "default", ready: "1/1", status: "Running", restarts: 0, age: "5d", ip: "10.244.1.5", node: "node-2" },
-      { name: "nginx-deployment-7d4c8f6d9b-mt9pq", namespace: "default", ready: "1/1", status: "Running", restarts: 0, age: "5d", ip: "10.244.2.8", node: "node-3" },
-      { name: "redis-master-0", namespace: "default", ready: "1/1", status: "Running", restarts: 1, age: "12d", ip: "10.244.1.12", node: "node-2" },
-      { name: "postgres-db-85f9c7b8d-xk4jl", namespace: "production", ready: "1/1", status: "Running", restarts: 0, age: "18d", ip: "10.244.2.15", node: "node-3" },
-      { name: "api-server-65b8d4f7c9-p2wvn", namespace: "production", ready: "2/2", status: "Running", restarts: 0, age: "7d", ip: "10.244.1.20", node: "node-2" },
-      { name: "coredns-5d78c9869d-7hqxm", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 3, age: "45d", ip: "10.244.0.2", node: "node-1" },
-      { name: "coredns-5d78c9869d-k9plz", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 2, age: "45d", ip: "10.244.0.3", node: "node-1" },
-      { name: "etcd-node-1", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 1, age: "45d", ip: "192.168.1.10", node: "node-1" },
-      { name: "kube-apiserver-node-1", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 2, age: "45d", ip: "192.168.1.10", node: "node-1" },
-      { name: "kube-controller-manager-node-1", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 1, age: "45d", ip: "192.168.1.10", node: "node-1" },
-      { name: "kube-proxy-6lxrt", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 0, age: "45d", ip: "192.168.1.10", node: "node-1" },
-      { name: "kube-proxy-m8w4p", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 0, age: "45d", ip: "192.168.1.11", node: "node-2" },
-      { name: "kube-proxy-tn2vx", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 0, age: "45d", ip: "192.168.1.12", node: "node-3" },
-      { name: "kube-scheduler-node-1", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 1, age: "45d", ip: "192.168.1.10", node: "node-1" }
+      { name: "nginx-deployment-7d4c8f6d9b-hx2lk", namespace: "default", ready: "1/1", status: "Running", restarts: 0, ip: "10.244.1.5", node: "node-2", creationTimestamp: fiveDaysAgo },
+      { name: "nginx-deployment-7d4c8f6d9b-mt9pq", namespace: "default", ready: "1/1", status: "Running", restarts: 0, ip: "10.244.2.8", node: "node-3", creationTimestamp: fiveDaysAgo },
+      { name: "redis-master-0", namespace: "default", ready: "1/1", status: "Running", restarts: 1, ip: "10.244.1.12", node: "node-2", creationTimestamp: twelveDaysAgo },
+      { name: "postgres-db-85f9c7b8d-xk4jl", namespace: "production", ready: "1/1", status: "Running", restarts: 0, ip: "10.244.2.15", node: "node-3", creationTimestamp: eighteenDaysAgo },
+      { name: "api-server-65b8d4f7c9-p2wvn", namespace: "production", ready: "2/2", status: "Running", restarts: 0, ip: "10.244.1.20", node: "node-2", creationTimestamp: sevenDaysAgo },
+      { name: "coredns-5d78c9869d-7hqxm", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 3, ip: "10.244.0.2", node: "node-1", creationTimestamp: fortyFiveDaysAgo },
+      { name: "coredns-5d78c9869d-k9plz", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 2, ip: "10.244.0.3", node: "node-1", creationTimestamp: fortyFiveDaysAgo },
+      { name: "etcd-node-1", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 1, ip: "192.168.1.10", node: "node-1", creationTimestamp: fortyFiveDaysAgo },
+      { name: "kube-apiserver-node-1", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 2, ip: "192.168.1.10", node: "node-1", creationTimestamp: fortyFiveDaysAgo },
+      { name: "kube-controller-manager-node-1", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 1, ip: "192.168.1.10", node: "node-1", creationTimestamp: fortyFiveDaysAgo },
+      { name: "kube-proxy-6lxrt", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 0, ip: "192.168.1.10", node: "node-1", creationTimestamp: fortyFiveDaysAgo },
+      { name: "kube-proxy-m8w4p", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 0, ip: "192.168.1.11", node: "node-2", creationTimestamp: fortyFiveDaysAgo },
+      { name: "kube-proxy-tn2vx", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 0, ip: "192.168.1.12", node: "node-3", creationTimestamp: fortyFiveDaysAgo },
+      { name: "kube-scheduler-node-1", namespace: "kube-system", ready: "1/1", status: "Running", restarts: 1, ip: "192.168.1.10", node: "node-1", creationTimestamp: fortyFiveDaysAgo }
     ];
   }
 
   private initializeDeployments(): K8sDeployment[] {
+    const fiveDaysAgo = Date.now() - (5 * 24 * 60 * 60 * 1000);
+    const twelveDaysAgo = Date.now() - (12 * 24 * 60 * 60 * 1000);
+    const eighteenDaysAgo = Date.now() - (18 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const fortyFiveDaysAgo = Date.now() - (45 * 24 * 60 * 60 * 1000);
     return [
-      { name: "nginx-deployment", namespace: "default", ready: "2/2", upToDate: 2, available: 2, age: "5d" },
-      { name: "redis-master", namespace: "default", ready: "1/1", upToDate: 1, available: 1, age: "12d" },
-      { name: "postgres-db", namespace: "production", ready: "1/1", upToDate: 1, available: 1, age: "18d" },
-      { name: "api-server", namespace: "production", ready: "1/1", upToDate: 1, available: 1, age: "7d" },
-      { name: "coredns", namespace: "kube-system", ready: "2/2", upToDate: 2, available: 2, age: "45d" }
+      { name: "nginx-deployment", namespace: "default", ready: "2/2", upToDate: 2, available: 2, creationTimestamp: fiveDaysAgo },
+      { name: "redis-master", namespace: "default", ready: "1/1", upToDate: 1, available: 1, creationTimestamp: twelveDaysAgo },
+      { name: "postgres-db", namespace: "production", ready: "1/1", upToDate: 1, available: 1, creationTimestamp: eighteenDaysAgo },
+      { name: "api-server", namespace: "production", ready: "1/1", upToDate: 1, available: 1, creationTimestamp: sevenDaysAgo },
+      { name: "coredns", namespace: "kube-system", ready: "2/2", upToDate: 2, available: 2, creationTimestamp: fortyFiveDaysAgo }
     ];
   }
 
   private initializeServices(): K8sService[] {
+    const fiveDaysAgo = Date.now() - (5 * 24 * 60 * 60 * 1000);
+    const twelveDaysAgo = Date.now() - (12 * 24 * 60 * 60 * 1000);
+    const eighteenDaysAgo = Date.now() - (18 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const fortyFiveDaysAgo = Date.now() - (45 * 24 * 60 * 60 * 1000);
     return [
-      { name: "kubernetes", namespace: "default", type: "ClusterIP", clusterIp: "10.96.0.1", externalIp: "<none>", ports: "443/TCP", age: "45d" },
-      { name: "nginx-service", namespace: "default", type: "LoadBalancer", clusterIp: "10.96.15.20", externalIp: "203.0.113.42", ports: "80:30080/TCP", age: "5d" },
-      { name: "redis-service", namespace: "default", type: "ClusterIP", clusterIp: "10.96.22.15", externalIp: "<none>", ports: "6379/TCP", age: "12d" },
-      { name: "postgres-service", namespace: "production", type: "ClusterIP", clusterIp: "10.96.35.8", externalIp: "<none>", ports: "5432/TCP", age: "18d" },
-      { name: "api-service", namespace: "production", type: "NodePort", clusterIp: "10.96.40.12", externalIp: "<none>", ports: "8080:32000/TCP", age: "7d" },
-      { name: "kube-dns", namespace: "kube-system", type: "ClusterIP", clusterIp: "10.96.0.10", externalIp: "<none>", ports: "53/UDP,53/TCP,9153/TCP", age: "45d" }
+      { name: "kubernetes", namespace: "default", type: "ClusterIP", clusterIp: "10.96.0.1", externalIp: "<none>", ports: "443/TCP", creationTimestamp: fortyFiveDaysAgo },
+      { name: "nginx-service", namespace: "default", type: "LoadBalancer", clusterIp: "10.96.15.20", externalIp: "203.0.113.42", ports: "80:30080/TCP", creationTimestamp: fiveDaysAgo },
+      { name: "redis-service", namespace: "default", type: "ClusterIP", clusterIp: "10.96.22.15", externalIp: "<none>", ports: "6379/TCP", creationTimestamp: twelveDaysAgo },
+      { name: "postgres-service", namespace: "production", type: "ClusterIP", clusterIp: "10.96.35.8", externalIp: "<none>", ports: "5432/TCP", creationTimestamp: eighteenDaysAgo },
+      { name: "api-service", namespace: "production", type: "NodePort", clusterIp: "10.96.40.12", externalIp: "<none>", ports: "8080:32000/TCP", creationTimestamp: sevenDaysAgo },
+      { name: "kube-dns", namespace: "kube-system", type: "ClusterIP", clusterIp: "10.96.0.10", externalIp: "<none>", ports: "53/UDP,53/TCP,9153/TCP", creationTimestamp: fortyFiveDaysAgo }
     ];
   }
 
@@ -410,9 +456,9 @@ export class KubectlSimulator {
             ready: "1/1",
             status: "Running",
             restarts: 0,
-            age: "0s",
             ip: this.generateIP(),
-            node: this.getRandomWorkerNode()
+            node: this.getRandomWorkerNode(),
+            creationTimestamp: Date.now()
           };
           this.pods.push(newPod);
         }
@@ -444,7 +490,7 @@ export class KubectlSimulator {
     this.namespaces.push({
       name,
       status: "Active",
-      age: "0s"
+      creationTimestamp: Date.now()
     });
 
     this.notifyStateChange();
@@ -477,7 +523,7 @@ export class KubectlSimulator {
       ready: `${replicas}/${replicas}`,
       upToDate: replicas,
       available: replicas,
-      age: "0s"
+      creationTimestamp: Date.now()
     });
 
     for (let i = 0; i < replicas; i++) {
@@ -487,9 +533,9 @@ export class KubectlSimulator {
         ready: "1/1",
         status: "Running",
         restarts: 0,
-        age: "0s",
         ip: this.generateIP(),
-        node: this.getRandomWorkerNode()
+        node: this.getRandomWorkerNode(),
+        creationTimestamp: Date.now()
       });
     }
 
@@ -520,7 +566,7 @@ export class KubectlSimulator {
       clusterIp: this.generateClusterIP(),
       externalIp: serviceType === "LoadBalancer" ? this.generateExternalIP() : "<none>",
       ports: `${port}/TCP`,
-      age: "0s"
+      creationTimestamp: Date.now()
     });
 
     this.notifyStateChange();
@@ -552,9 +598,9 @@ export class KubectlSimulator {
       ready: "1/1",
       status: "Running",
       restarts: 0,
-      age: "0s",
       ip: this.generateIP(),
-      node: this.getRandomWorkerNode()
+      node: this.getRandomWorkerNode(),
+      creationTimestamp: Date.now()
     });
 
     this.notifyStateChange();
@@ -786,14 +832,14 @@ Use "kubectl <command> --help" for more information about a given command.`,
     if (format === "wide") {
       const header = "NAME     STATUS   ROLES           AGE   VERSION    INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION      CONTAINER-RUNTIME";
       const rows = this.nodes.map(n => 
-        `${n.name.padEnd(8)} ${n.status.padEnd(8)} ${n.roles.padEnd(15)} ${n.age.padEnd(5)} ${n.version.padEnd(10)} ${n.internalIp.padEnd(15)} <none>        ${n.osImage.padEnd(20)} ${n.kernelVersion.padEnd(19)} ${n.containerRuntime}`
+        `${n.name.padEnd(8)} ${n.status.padEnd(8)} ${n.roles.padEnd(15)} ${this.formatAge(n.creationTimestamp).padEnd(5)} ${n.version.padEnd(10)} ${n.internalIp.padEnd(15)} <none>        ${n.osImage.padEnd(20)} ${n.kernelVersion.padEnd(19)} ${n.containerRuntime}`
       );
       return { output: [header, ...rows].join("\n"), isError: false };
     }
 
     const header = "NAME     STATUS   ROLES           AGE   VERSION";
     const rows = this.nodes.map(n => 
-      `${n.name.padEnd(8)} ${n.status.padEnd(8)} ${n.roles.padEnd(15)} ${n.age.padEnd(5)} ${n.version}`
+      `${n.name.padEnd(8)} ${n.status.padEnd(8)} ${n.roles.padEnd(15)} ${this.formatAge(n.creationTimestamp).padEnd(5)} ${n.version}`
     );
     return { output: [header, ...rows].join("\n"), isError: false };
   }
@@ -817,7 +863,7 @@ Use "kubectl <command> --help" for more information about a given command.`,
         : "NAME                                      READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES";
       
       const rows = filtered.map(p => {
-        const base = `${p.name.padEnd(41)} ${p.ready.padEnd(7)} ${p.status.padEnd(9)} ${String(p.restarts).padEnd(10)} ${p.age.padEnd(5)} ${(p.ip || '<none>').padEnd(14)} ${(p.node || '<none>').padEnd(10)} <none>           <none>`;
+        const base = `${p.name.padEnd(41)} ${p.ready.padEnd(7)} ${p.status.padEnd(9)} ${String(p.restarts).padEnd(10)} ${this.formatAge(p.creationTimestamp).padEnd(5)} ${(p.ip || '<none>').padEnd(14)} ${(p.node || '<none>').padEnd(10)} <none>           <none>`;
         return hasNamespace ? `${p.namespace.padEnd(13)} ${base}` : base;
       });
 
@@ -829,7 +875,7 @@ Use "kubectl <command> --help" for more information about a given command.`,
       : "NAME                                      READY   STATUS    RESTARTS   AGE";
     
     const rows = filtered.map(p => {
-      const base = `${p.name.padEnd(41)} ${p.ready.padEnd(7)} ${p.status.padEnd(9)} ${String(p.restarts).padEnd(10)} ${p.age}`;
+      const base = `${p.name.padEnd(41)} ${p.ready.padEnd(7)} ${p.status.padEnd(9)} ${String(p.restarts).padEnd(10)} ${this.formatAge(p.creationTimestamp)}`;
       return hasNamespace ? `${p.namespace.padEnd(13)} ${base}` : base;
     });
 
@@ -853,7 +899,7 @@ Use "kubectl <command> --help" for more information about a given command.`,
       : "NAME                READY   UP-TO-DATE   AVAILABLE   AGE";
 
     const rows = filtered.map(d => {
-      const base = `${d.name.padEnd(19)} ${d.ready.padEnd(7)} ${String(d.upToDate).padEnd(12)} ${String(d.available).padEnd(11)} ${d.age}`;
+      const base = `${d.name.padEnd(19)} ${d.ready.padEnd(7)} ${String(d.upToDate).padEnd(12)} ${String(d.available).padEnd(11)} ${this.formatAge(d.creationTimestamp)}`;
       return hasNamespace ? `${d.namespace.padEnd(13)} ${base}` : base;
     });
 
@@ -877,7 +923,7 @@ Use "kubectl <command> --help" for more information about a given command.`,
       : "NAME              TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                      AGE";
 
     const rows = filtered.map(s => {
-      const base = `${s.name.padEnd(17)} ${s.type.padEnd(14)} ${s.clusterIp.padEnd(15)} ${s.externalIp.padEnd(15)} ${s.ports.padEnd(28)} ${s.age}`;
+      const base = `${s.name.padEnd(17)} ${s.type.padEnd(14)} ${s.clusterIp.padEnd(15)} ${s.externalIp.padEnd(15)} ${s.ports.padEnd(28)} ${this.formatAge(s.creationTimestamp)}`;
       return hasNamespace ? `${s.namespace.padEnd(13)} ${base}` : base;
     });
 
@@ -895,7 +941,7 @@ Use "kubectl <command> --help" for more information about a given command.`,
 
     const header = "NAME               STATUS   AGE";
     const rows = this.namespaces.map(n => 
-      `${n.name.padEnd(18)} ${n.status.padEnd(8)} ${n.age}`
+      `${n.name.padEnd(18)} ${n.status.padEnd(8)} ${this.formatAge(n.creationTimestamp)}`
     );
     return { output: [header, ...rows].join("\n"), isError: false };
   }
@@ -908,17 +954,17 @@ Use "kubectl <command> --help" for more information about a given command.`,
     return {
       output: `NAME                                          READY   STATUS    RESTARTS   AGE
 ${this.pods.filter(p => p.namespace === namespace).map(p => 
-  `pod/${p.name.padEnd(41)} ${p.ready.padEnd(7)} ${p.status.padEnd(9)} ${String(p.restarts).padEnd(10)} ${p.age}`
+  `pod/${p.name.padEnd(41)} ${p.ready.padEnd(7)} ${p.status.padEnd(9)} ${String(p.restarts).padEnd(10)} ${this.formatAge(p.creationTimestamp)}`
 ).join("\n")}
 
 NAME                                READY   UP-TO-DATE   AVAILABLE   AGE
 ${this.deployments.filter(d => d.namespace === namespace).map(d => 
-  `deployment.apps/${d.name.padEnd(19)} ${d.ready.padEnd(7)} ${String(d.upToDate).padEnd(12)} ${String(d.available).padEnd(11)} ${d.age}`
+  `deployment.apps/${d.name.padEnd(19)} ${d.ready.padEnd(7)} ${String(d.upToDate).padEnd(12)} ${String(d.available).padEnd(11)} ${this.formatAge(d.creationTimestamp)}`
 ).join("\n")}
 
 NAME              TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                      AGE
 ${this.services.filter(s => s.namespace === namespace).map(s => 
-  `service/${s.name.padEnd(17)} ${s.type.padEnd(14)} ${s.clusterIp.padEnd(15)} ${s.externalIp.padEnd(15)} ${s.ports.padEnd(28)} ${s.age}`
+  `service/${s.name.padEnd(17)} ${s.type.padEnd(14)} ${s.clusterIp.padEnd(15)} ${s.externalIp.padEnd(15)} ${s.ports.padEnd(28)} ${this.formatAge(s.creationTimestamp)}`
 ).join("\n")}`,
       isError: false
     };
@@ -983,7 +1029,7 @@ Non-terminated Pods:          (${this.pods.filter(p => p.node === name).length} 
   Namespace                   Name                                CPU Requests  CPU Limits  Memory Requests  Memory Limits  Age
   ---------                   ----                                ------------  ----------  ---------------  -------------  ---
 ${this.pods.filter(p => p.node === name).map(p => 
-  `  ${p.namespace.padEnd(27)} ${p.name.padEnd(35)} 0 (0%)        0 (0%)      0 (0%)           0 (0%)         ${p.age}`
+  `  ${p.namespace.padEnd(27)} ${p.name.padEnd(35)} 0 (0%)        0 (0%)      0 (0%)           0 (0%)         ${this.formatAge(p.creationTimestamp)}`
 ).join("\n")}
 Allocated resources:
   (Total limits may be over 100 percent, i.e., overcommitted.)
@@ -1009,7 +1055,7 @@ Namespace:        ${pod.namespace}
 Priority:         0
 Service Account:  default
 Node:             ${pod.node || 'unknown'}
-Start Time:       ${new Date(Date.now() - parseInt(pod.age) * 24 * 60 * 60 * 1000).toISOString()}
+Start Time:       ${new Date(pod.creationTimestamp).toISOString()}
 Labels:           app=${pod.name.split('-')[0]}
                   pod-template-hash=${pod.name.split('-').slice(-1)[0]}
 Annotations:      <none>
@@ -1025,7 +1071,7 @@ Containers:
     Port:           <none>
     Host Port:      <none>
     State:          Running
-      Started:      ${new Date(Date.now() - parseInt(pod.age) * 24 * 60 * 60 * 1000).toISOString()}
+      Started:      ${new Date(pod.creationTimestamp).toISOString()}
     Ready:          True
     Restart Count:  ${pod.restarts}
     Environment:    <none>
@@ -1145,7 +1191,7 @@ Use "helm [command] --help" for more information about a command.`,
       this.namespaces.push({
         name: namespace,
         status: "Active",
-        age: "0s"
+        creationTimestamp: Date.now()
       });
     }
 
@@ -1190,9 +1236,9 @@ Thank you for installing ${chartName}!`,
         ready: "1/1",
         status: "Running",
         restarts: 0,
-        age: "0s",
         ip: `10.244.0.${Math.floor(Math.random() * 200) + 10}`,
-        node: "openchoreo-worker"
+        node: "openchoreo-worker",
+        creationTimestamp: timestamp
       });
       this.nodes.forEach(node => {
         node.status = "Ready";
@@ -1207,9 +1253,9 @@ Thank you for installing ${chartName}!`,
           ready: "1/1",
           status: "Running",
           restarts: 0,
-          age: "0s",
           ip: `10.244.1.${Math.floor(Math.random() * 200) + 10}`,
-          node: "openchoreo-worker"
+          node: "openchoreo-worker",
+          creationTimestamp: timestamp
         });
       });
 
@@ -1220,9 +1266,9 @@ Thank you for installing ${chartName}!`,
           ready: "1/1",
           status: "Running",
           restarts: 0,
-          age: "0s",
           ip: `10.244.1.${Math.floor(Math.random() * 200) + 10}`,
-          node: "openchoreo-worker"
+          node: "openchoreo-worker",
+          creationTimestamp: timestamp
         });
       }
 
@@ -1232,7 +1278,7 @@ Thank you for installing ${chartName}!`,
         ready: "1/1",
         upToDate: 1,
         available: 1,
-        age: "0s"
+        creationTimestamp: timestamp
       });
 
       this.deployments.push({
@@ -1241,7 +1287,7 @@ Thank you for installing ${chartName}!`,
         ready: "1/1",
         upToDate: 1,
         available: 1,
-        age: "0s"
+        creationTimestamp: timestamp
       });
     }
 
@@ -1253,9 +1299,9 @@ Thank you for installing ${chartName}!`,
           ready: "1/1",
           status: "Running",
           restarts: 0,
-          age: "0s",
           ip: `10.244.2.${Math.floor(Math.random() * 200) + 10}`,
-          node: "openchoreo-worker"
+          node: "openchoreo-worker",
+          creationTimestamp: timestamp
         });
       });
     }
@@ -1267,9 +1313,9 @@ Thank you for installing ${chartName}!`,
         ready: "1/1",
         status: "Running",
         restarts: 0,
-        age: "0s",
         ip: `10.244.3.${Math.floor(Math.random() * 200) + 10}`,
-        node: "openchoreo-worker"
+        node: "openchoreo-worker",
+        creationTimestamp: timestamp
       });
 
       this.deployments.push({
@@ -1278,7 +1324,7 @@ Thank you for installing ${chartName}!`,
         ready: "1/1",
         upToDate: 1,
         available: 1,
-        age: "0s"
+        creationTimestamp: timestamp
       });
     }
   }
@@ -1442,7 +1488,7 @@ Note: This is a simulated script execution. Unknown URLs return mock output.`,
             sim.namespaces.push({
               name: ciliumNamespace,
               status: "Active",
-              age: "0s"
+              creationTimestamp: Date.now()
             });
           }
 
@@ -1452,9 +1498,9 @@ Note: This is a simulated script execution. Unknown URLs return mock output.`,
             ready: "1/1",
             status: "Running",
             restarts: 0,
-            age: "0s",
             ip: `10.244.0.${Math.floor(Math.random() * 200) + 10}`,
-            node: "node-1"
+            node: "node-1",
+            creationTimestamp: Date.now()
           });
 
           sim.nodes.forEach(node => {
@@ -1501,7 +1547,7 @@ Next steps:
             sim.namespaces.push({
               name: cpNamespace,
               status: "Active",
-              age: "0s"
+              creationTimestamp: Date.now()
             });
           }
 
@@ -1512,9 +1558,9 @@ Next steps:
               ready: "1/1",
               status: "Running",
               restarts: 0,
-              age: "0s",
               ip: `10.244.1.${Math.floor(Math.random() * 200) + 10}`,
-              node: "node-2"
+              node: "node-2",
+              creationTimestamp: Date.now()
             });
           });
 
@@ -1530,7 +1576,7 @@ Next steps:
             sim.namespaces.push({
               name: dpNamespace,
               status: "Active",
-              age: "0s"
+              creationTimestamp: Date.now()
             });
           }
 
@@ -1541,9 +1587,9 @@ Next steps:
               ready: "1/1",
               status: "Running",
               restarts: 0,
-              age: "0s",
               ip: `10.244.2.${Math.floor(Math.random() * 200) + 10}`,
-              node: "node-3"
+              node: "node-3",
+              creationTimestamp: Date.now()
             });
           });
 
