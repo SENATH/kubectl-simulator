@@ -55,3 +55,15 @@ export interface CommandHistoryEntry {
   timestamp: number;
   isError: boolean;
 }
+
+export type SimulatorMode = "basic" | "openchoreo";
+
+export interface HelmRelease {
+  name: string;
+  namespace: string;
+  revision: string;
+  updated: string;
+  status: string;
+  chart: string;
+  appVersion: string;
+}

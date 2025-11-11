@@ -1,13 +1,16 @@
 import { Terminal } from "@/components/Terminal";
 import { CommandReference } from "@/components/CommandReference";
 import { ClusterOverview } from "@/components/ClusterOverview";
+import { ModeSelector } from "@/components/ModeSelector";
 import { Button } from "@/components/ui/button";
 import { Moon, Sun } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SimulatorProvider } from "@/lib/simulator-context";
+import type { SimulatorMode } from "@shared/schema";
 
 export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("dark");
+  const [selectedMode, setSelectedMode] = useState<SimulatorMode | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("theme") as "light" | "dark" | null;
@@ -23,8 +26,12 @@ export default function Home() {
     document.documentElement.classList.toggle("dark", newTheme === "dark");
   };
 
+  if (!selectedMode) {
+    return <ModeSelector onSelectMode={setSelectedMode} />;
+  }
+
   return (
-    <SimulatorProvider>
+    <SimulatorProvider mode={selectedMode}>
       <div className="flex flex-col h-screen bg-background">
         <header className="border-b border-border px-4 py-3 flex items-center justify-between gap-4 flex-shrink-0">
           <div className="flex items-center gap-3">

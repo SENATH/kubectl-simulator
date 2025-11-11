@@ -1,19 +1,23 @@
-import type { K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace } from "@shared/schema";
+import type { K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace, HelmRelease, SimulatorMode } from "@shared/schema";
 
 export class KubectlSimulator {
+  private mode: SimulatorMode;
   private nodes: K8sNode[];
   private pods: K8sPod[];
   private deployments: K8sDeployment[];
   private services: K8sService[];
   private namespaces: K8sNamespace[];
+  private helmReleases: HelmRelease[];
   private stateChangeCallbacks: (() => void)[] = [];
 
-  constructor() {
+  constructor(mode: SimulatorMode = "basic") {
+    this.mode = mode;
     this.nodes = this.initializeNodes();
     this.namespaces = this.initializeNamespaces();
     this.pods = this.initializePods();
     this.deployments = this.initializeDeployments();
     this.services = this.initializeServices();
+    this.helmReleases = [];
   }
 
   onStateChange(callback: () => void) {
@@ -162,6 +166,18 @@ export class KubectlSimulator {
       return {
         output: `${firstCommand}: simulated filesystem - changes not persisted`,
         isError: false
+      };
+    }
+
+    if (firstCommand === "helm" && this.mode === "openchoreo") {
+      const helmArgs = parts.slice(1);
+      return this.handleHelm(helmArgs);
+    }
+
+    if (firstCommand === "helm" && this.mode === "basic") {
+      return {
+        output: "bash: helm: command not found\nTip: Helm is available in OpenChoreo IDP mode",
+        isError: true
       };
     }
 
@@ -1021,6 +1037,218 @@ Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists fo
 Events:                      <none>`,
       isError: false
     };
+  }
+
+  private handleHelm(args: string[]): { output: string; isError: boolean } {
+    if (args.length === 0) {
+      return {
+        output: `The Kubernetes package manager
+
+Common actions for Helm:
+
+- helm install: install a chart
+- helm list: list releases
+- helm upgrade: upgrade a release
+- helm uninstall: uninstall a release
+- helm version: print the version
+
+Usage:
+  helm [command]
+
+Use "helm [command] --help" for more information about a command.`,
+        isError: false
+      };
+    }
+
+    const command = args[0];
+
+    switch (command) {
+      case "version":
+        return this.handleHelmVersion();
+      case "install":
+        return this.handleHelmInstall(args.slice(1));
+      case "list":
+      case "ls":
+        return this.handleHelmList(args.slice(1));
+      case "--version":
+        return this.handleHelmVersion();
+      default:
+        return {
+          output: `Error: unknown command "${command}" for "helm"`,
+          isError: true
+        };
+    }
+  }
+
+  private handleHelmVersion(): { output: string; isError: boolean } {
+    return {
+      output: `version.BuildInfo{Version:"v3.15.1", GitCommit:"a5e7e", GitTreeState:"clean"}`,
+      isError: false
+    };
+  }
+
+  private handleHelmList(args: string[]): { output: string; isError: boolean } {
+    const flags = this.parseFlags(args);
+    const namespace = typeof flags.namespace === 'string' ? flags.namespace : undefined;
+
+    let releases = this.helmReleases;
+    if (namespace) {
+      releases = releases.filter(r => r.namespace === namespace);
+    }
+
+    if (releases.length === 0) {
+      return {
+        output: "",
+        isError: false
+      };
+    }
+
+    const header = "NAME                    \tNAMESPACE                      \tREVISION\tUPDATED                        \tSTATUS  \tCHART                         \tAPP VERSION";
+    const rows = releases.map(r => 
+      `${r.name.padEnd(24)}\t${r.namespace.padEnd(31)}\t${r.revision}\t${r.updated.padEnd(31)}\t${r.status.padEnd(8)}\t${r.chart.padEnd(30)}\t${r.appVersion}`
+    );
+
+    return {
+      output: [header, ...rows].join("\n"),
+      isError: false
+    };
+  }
+
+  private handleHelmInstall(args: string[]): { output: string; isError: boolean } {
+    if (args.length < 2) {
+      return {
+        output: "Error: \"helm install\" requires 2 arguments\n\nUsage:  helm install [NAME] [CHART] [flags]",
+        isError: true
+      };
+    }
+
+    const releaseName = args[0];
+    const chartUrl = args[1];
+    const flags = this.parseFlags(args.slice(2));
+
+    const namespace = typeof flags.namespace === 'string' ? flags.namespace : 
+                     typeof flags['create-namespace'] !== 'undefined' && typeof flags.namespace === 'string' ? flags.namespace : 'default';
+    const version = typeof flags.version === 'string' ? flags.version : '0.3.2';
+    const createNamespace = flags['create-namespace'] === true;
+
+    if (createNamespace && namespace && !this.namespaces.find(ns => ns.name === namespace)) {
+      this.namespaces.push({
+        name: namespace,
+        status: "Active",
+        age: "0s"
+      });
+    }
+
+    const chartName = chartUrl.includes('/') ? chartUrl.split('/').pop() || chartUrl : chartUrl;
+
+    const helmRelease: HelmRelease = {
+      name: releaseName,
+      namespace,
+      revision: "1",
+      updated: new Date().toISOString().split('T')[0] + " " + new Date().toTimeString().split(' ')[0],
+      status: "deployed",
+      chart: `${chartName}-${version}`,
+      appVersion: version
+    };
+
+    this.helmReleases.push(helmRelease);
+
+    this.addOpenChoreoComponents(releaseName, namespace, chartName);
+
+    this.notifyStateChange();
+
+    return {
+      output: `NAME: ${releaseName}
+LAST DEPLOYED: ${helmRelease.updated}
+NAMESPACE: ${namespace}
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+Thank you for installing ${chartName}!`,
+      isError: false
+    };
+  }
+
+  private addOpenChoreoComponents(releaseName: string, namespace: string, chartName: string) {
+    const timestamp = Date.now();
+    
+    if (chartName.includes('cilium')) {
+      this.pods.push({
+        name: `cilium-${Math.random().toString(36).substring(7)}`,
+        namespace,
+        ready: "1/1",
+        status: "Running",
+        restarts: 0,
+        age: "0s",
+        ip: `10.244.0.${Math.floor(Math.random() * 200) + 10}`,
+        node: "openchoreo-worker"
+      });
+      this.nodes.forEach(node => {
+        node.status = "Ready";
+      });
+    }
+
+    if (chartName.includes('control-plane')) {
+      ['controller-manager', 'api-server'].forEach(component => {
+        this.pods.push({
+          name: `${component}-${Math.random().toString(36).substring(7)}`,
+          namespace,
+          ready: "1/1",
+          status: "Running",
+          restarts: 0,
+          age: "0s",
+          ip: `10.244.1.${Math.floor(Math.random() * 200) + 10}`,
+          node: "openchoreo-worker"
+        });
+      });
+
+      for (let i = 0; i < 3; i++) {
+        this.pods.push({
+          name: `cert-manager-${['webhook', 'cainjector', ''][i]}-${Math.random().toString(36).substring(7)}`,
+          namespace,
+          ready: "1/1",
+          status: "Running",
+          restarts: 0,
+          age: "0s",
+          ip: `10.244.1.${Math.floor(Math.random() * 200) + 10}`,
+          node: "openchoreo-worker"
+        });
+      }
+
+      this.deployments.push({
+        name: "controller-manager",
+        namespace,
+        ready: "1/1",
+        upToDate: 1,
+        available: 1,
+        age: "0s"
+      });
+
+      this.deployments.push({
+        name: "api-server",
+        namespace,
+        ready: "1/1",
+        upToDate: 1,
+        available: 1,
+        age: "0s"
+      });
+    }
+
+    if (chartName.includes('data-plane')) {
+      ['hashicorp-vault-0', 'secrets-store-csi-driver', 'gateway', 'registry', 'redis', 'envoy-gateway', 'envoy-ratelimit', 'fluent-bit'].forEach(component => {
+        this.pods.push({
+          name: `${component}-${Math.random().toString(36).substring(7)}`,
+          namespace,
+          ready: "1/1",
+          status: "Running",
+          restarts: 0,
+          age: "0s",
+          ip: `10.244.2.${Math.floor(Math.random() * 200) + 10}`,
+          node: "openchoreo-worker"
+        });
+      });
+    }
   }
 
   private parseFlags(args: string[]): Record<string, string | boolean> {
