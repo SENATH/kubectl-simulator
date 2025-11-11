@@ -181,6 +181,16 @@ export class KubectlSimulator {
       };
     }
 
+    if (firstCommand === "curl") {
+      if (this.mode === "basic") {
+        return {
+          output: "bash: curl: command not found\nTip: curl is available in OpenChoreo IDP mode for installing scripts",
+          isError: true
+        };
+      }
+      return this.handleCurl(trimmed);
+    }
+
     if (!trimmed.startsWith("kubectl")) {
       return {
         output: `bash: ${trimmed.split(" ")[0]}: command not found`,
@@ -1249,6 +1259,312 @@ Thank you for installing ${chartName}!`,
         });
       });
     }
+  }
+
+  private handleCurl(command: string): { output: string; isError: boolean } {
+    const pipeline = this.parsePipeline(command);
+    
+    if (pipeline.length === 0) {
+      return { output: "curl: no URL specified", isError: true };
+    }
+
+    const curlSegment = pipeline[0];
+    const curlResult = this.executeCurlCommand(curlSegment);
+    
+    if (curlResult.isError) {
+      return curlResult;
+    }
+
+    if (pipeline.length > 1) {
+      const pipeTarget = pipeline[1].trim();
+      
+      if (pipeTarget === "bash" || pipeTarget === "sh" || 
+          pipeTarget.startsWith("bash ") || pipeTarget.startsWith("sh ")) {
+        const url = this.extractUrlFromCurl(curlSegment);
+        return this.executeScriptFromUrl(url);
+      } else if (pipeTarget.startsWith("kubectl apply -f")) {
+        return { output: "Applied configuration from stdin", isError: false };
+      } else {
+        return { output: `Piping to ${pipeTarget} is not yet supported in this simulator`, isError: false };
+      }
+    }
+
+    return curlResult;
+  }
+
+  private parsePipeline(command: string): string[] {
+    const segments: string[] = [];
+    let current = "";
+    let inQuotes = false;
+    let quoteChar = "";
+
+    for (let i = 0; i < command.length; i++) {
+      const char = command[i];
+      
+      if ((char === '"' || char === "'") && (i === 0 || command[i - 1] !== '\\')) {
+        if (!inQuotes) {
+          inQuotes = true;
+          quoteChar = char;
+        } else if (char === quoteChar) {
+          inQuotes = false;
+          quoteChar = "";
+        }
+        current += char;
+      } else if (char === '|' && !inQuotes) {
+        segments.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    
+    if (current.trim()) {
+      segments.push(current.trim());
+    }
+    
+    return segments;
+  }
+
+  private extractUrlFromCurl(curlCommand: string): string {
+    const urlMatch = curlCommand.match(/https?:\/\/[^\s'"]+/);
+    return urlMatch ? urlMatch[0] : "";
+  }
+
+  private executeCurlCommand(curlCommand: string): { output: string; isError: boolean } {
+    const url = this.extractUrlFromCurl(curlCommand);
+    
+    if (!url) {
+      return { output: "curl: no URL specified", isError: true };
+    }
+
+    const hasFailFlag = curlCommand.includes('-f') || curlCommand.includes('--fail');
+    const hasSilentFlag = curlCommand.includes('-s') || curlCommand.includes('--silent') || curlCommand.includes('-S');
+    
+    if (!hasSilentFlag) {
+      return {
+        output: `  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  2048  100  2048    0     0   8192      0 --:--:-- --:--:-- --:--:--  8192
+
+${this.getContentForUrl(url)}`,
+        isError: false
+      };
+    }
+
+    return {
+      output: this.getContentForUrl(url),
+      isError: false
+    };
+  }
+
+  private getContentForUrl(url: string): string {
+    const scriptRegistry = this.getScriptRegistry();
+    
+    for (const [pattern, content] of Object.entries(scriptRegistry)) {
+      if (url.includes(pattern)) {
+        return content.scriptContent || "#!/bin/bash\n# Simulated script content\necho 'Script downloaded successfully'";
+      }
+    }
+
+    return `<!DOCTYPE html>
+<html>
+<head><title>Simulated Response</title></head>
+<body>
+<h1>Mock Response for ${url}</h1>
+<p>This is a simulated curl response.</p>
+</body>
+</html>`;
+  }
+
+  private executeScriptFromUrl(url: string): { output: string; isError: boolean } {
+    const scriptRegistry = this.getScriptRegistry();
+    
+    for (const [pattern, script] of Object.entries(scriptRegistry)) {
+      if (url.includes(pattern)) {
+        return script.executor(this);
+      }
+    }
+
+    return {
+      output: `Downloading and executing script from ${url}...
+✓ Script downloaded successfully
+✓ Executing installation script...
+✓ Installation completed
+
+Note: This is a simulated script execution. Unknown URLs return mock output.`,
+      isError: false
+    };
+  }
+
+  private getScriptRegistry(): Record<string, { scriptContent?: string; executor: (sim: KubectlSimulator) => { output: string; isError: boolean } }> {
+    return {
+      "openchoreo-bootstrap": {
+        scriptContent: "#!/bin/bash\n# OpenChoreo Bootstrap Script\necho 'Initializing OpenChoreo cluster...'\n",
+        executor: (sim: KubectlSimulator) => {
+          const output = `Downloading OpenChoreo bootstrap script...
+✓ Script downloaded successfully
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  OpenChoreo Cluster Bootstrap
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1/4] Initializing cluster prerequisites...
+      ✓ Checking system requirements
+      ✓ Validating network configuration
+      
+[2/4] Installing Cilium CNI...
+      ✓ Helm repository added
+      ✓ Installing cilium chart...`;
+
+          const ciliumNamespace = 'cilium';
+          if (!sim.namespaces.find(ns => ns.name === ciliumNamespace)) {
+            sim.namespaces.push({
+              name: ciliumNamespace,
+              status: "Active",
+              age: "0s"
+            });
+          }
+
+          sim.pods.push({
+            name: `cilium-${Math.random().toString(36).substring(7)}`,
+            namespace: ciliumNamespace,
+            ready: "1/1",
+            status: "Running",
+            restarts: 0,
+            age: "0s",
+            ip: `10.244.0.${Math.floor(Math.random() * 200) + 10}`,
+            node: "node-1"
+          });
+
+          sim.nodes.forEach(node => {
+            node.status = "Ready";
+          });
+
+          const finalOutput = output + `
+      ✓ Cilium CNI installed successfully
+
+[3/4] Configuring network policies...
+      ✓ Network policies applied
+      
+[4/4] Finalizing cluster setup...
+      ✓ Cluster bootstrap completed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Bootstrap Complete
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Next steps:
+  1. Install control plane: helm install control-plane ...
+  2. Install data plane: helm install data-plane ...
+  3. Verify installation: kubectl get pods -A
+
+`;
+
+          sim.notifyStateChange();
+          return { output: finalOutput, isError: false };
+        }
+      },
+      "install-openchoreo": {
+        scriptContent: "#!/bin/bash\n# OpenChoreo Installation Script\n",
+        executor: (sim: KubectlSimulator) => {
+          const output = `Downloading OpenChoreo installation script...
+✓ Script downloaded successfully
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  OpenChoreo Full Installation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1/3] Installing Control Plane components...`;
+
+          const cpNamespace = 'openchoreo-control-plane';
+          if (!sim.namespaces.find(ns => ns.name === cpNamespace)) {
+            sim.namespaces.push({
+              name: cpNamespace,
+              status: "Active",
+              age: "0s"
+            });
+          }
+
+          ['controller-manager', 'api-server'].forEach(component => {
+            sim.pods.push({
+              name: `${component}-${Math.random().toString(36).substring(7)}`,
+              namespace: cpNamespace,
+              ready: "1/1",
+              status: "Running",
+              restarts: 0,
+              age: "0s",
+              ip: `10.244.1.${Math.floor(Math.random() * 200) + 10}`,
+              node: "node-2"
+            });
+          });
+
+          const midOutput = output + `
+      ✓ Controller Manager deployed
+      ✓ API Server deployed
+      ✓ Cert Manager deployed
+
+[2/3] Installing Data Plane components...`;
+
+          const dpNamespace = 'openchoreo-data-plane';
+          if (!sim.namespaces.find(ns => ns.name === dpNamespace)) {
+            sim.namespaces.push({
+              name: dpNamespace,
+              status: "Active",
+              age: "0s"
+            });
+          }
+
+          ['vault', 'gateway', 'registry', 'redis'].forEach(component => {
+            sim.pods.push({
+              name: `${component}-${Math.random().toString(36).substring(7)}`,
+              namespace: dpNamespace,
+              ready: "1/1",
+              status: "Running",
+              restarts: 0,
+              age: "0s",
+              ip: `10.244.2.${Math.floor(Math.random() * 200) + 10}`,
+              node: "node-3"
+            });
+          });
+
+          const finalOutput = midOutput + `
+      ✓ Vault deployed
+      ✓ Gateway deployed
+      ✓ Registry deployed
+      ✓ Redis deployed
+
+[3/3] Verifying installation...
+      ✓ All components healthy
+      ✓ OpenChoreo IDP ready
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Installation Complete
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OpenChoreo IDP is now running!
+
+Access the dashboard: kubectl port-forward -n openchoreo-control-plane svc/api-server 8080:8080
+
+`;
+
+          sim.notifyStateChange();
+          return { output: finalOutput, isError: false };
+        }
+      },
+      "cluster-setup": {
+        scriptContent: "#!/bin/bash\n# Cluster Setup Script\n",
+        executor: (sim: KubectlSimulator) => {
+          return {
+            output: `Downloading cluster setup script...
+✓ Script downloaded successfully
+✓ Configuring cluster...
+✓ Setting up networking...
+✓ Cluster setup completed
+
+Run 'kubectl get nodes' to verify cluster status.`,
+            isError: false
+          };
+        }
+      }
+    };
   }
 
   private parseFlags(args: string[]): Record<string, string | boolean> {

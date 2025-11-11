@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { KubectlSimulator } from '@/lib/kubectl-simulator';
 import type { SimulatorMode } from '@shared/schema';
 
@@ -15,10 +15,12 @@ interface SimulatorProviderProps {
 }
 
 export function SimulatorProvider({ children, mode }: SimulatorProviderProps) {
-  const [simulator] = useState(() => new KubectlSimulator(mode));
+  const simulator = useMemo(() => new KubectlSimulator(mode), [mode]);
   const [state, setState] = useState(() => simulator.getState());
 
   useEffect(() => {
+    setState(simulator.getState());
+    
     const handleStateChange = () => {
       setState(simulator.getState());
     };
