@@ -1267,6 +1267,10 @@ Thank you for installing ${chartName}!`,
   private addOpenChoreoComponents(releaseName: string, namespace: string, chartName: string) {
     const timestamp = Date.now();
     
+    if (chartName.includes('control-plane')) {
+      this.installOpenChoreoCRDs(releaseName, timestamp);
+    }
+    
     if (chartName.includes('cilium')) {
       this.pods.push({
         name: `cilium-${Math.random().toString(36).substring(7)}`,
@@ -1365,6 +1369,68 @@ Thank you for installing ${chartName}!`,
         creationTimestamp: timestamp
       });
     }
+  }
+
+  private installOpenChoreoCRDs(releaseName: string, timestamp: number) {
+    const coreCRDs: K8sCrd[] = [
+      {
+        name: "organizations.core.choreo.dev",
+        group: "core.choreo.dev",
+        version: "v1",
+        kind: "Organization",
+        plural: "organizations",
+        singular: "organization",
+        scope: "Cluster",
+        installedBy: releaseName,
+        creationTimestamp: timestamp
+      },
+      {
+        name: "projects.core.choreo.dev",
+        group: "core.choreo.dev",
+        version: "v1",
+        kind: "Project",
+        plural: "projects",
+        singular: "project",
+        scope: "Namespaced",
+        installedBy: releaseName,
+        creationTimestamp: timestamp
+      },
+      {
+        name: "components.core.choreo.dev",
+        group: "core.choreo.dev",
+        version: "v1",
+        kind: "Component",
+        plural: "components",
+        singular: "component",
+        scope: "Namespaced",
+        installedBy: releaseName,
+        creationTimestamp: timestamp
+      },
+      {
+        name: "builds.core.choreo.dev",
+        group: "core.choreo.dev",
+        version: "v1",
+        kind: "Build",
+        plural: "builds",
+        singular: "build",
+        scope: "Namespaced",
+        installedBy: releaseName,
+        creationTimestamp: timestamp
+      },
+      {
+        name: "deployableartifacts.core.choreo.dev",
+        group: "core.choreo.dev",
+        version: "v1",
+        kind: "DeployableArtifact",
+        plural: "deployableartifacts",
+        singular: "deployableartifact",
+        scope: "Namespaced",
+        installedBy: releaseName,
+        creationTimestamp: timestamp
+      }
+    ];
+
+    this.crds.push(...coreCRDs);
   }
 
   private handleCurl(command: string): { output: string; isError: boolean } {
