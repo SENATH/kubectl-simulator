@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Server, Box, AlertTriangle } from "lucide-react";
 import type { SimulatorMode } from "@shared/schema";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 
 interface ModeSelectorProps {
   onSelectMode: (mode: SimulatorMode) => void;
@@ -22,9 +22,14 @@ export function ModeSelector({ onSelectMode }: ModeSelectorProps) {
   const showBasic = availableModes.includes('basic');
   const showOpenChoreo = availableModes.includes('openchoreo');
 
+  useEffect(() => {
+    if (availableModes.length === 1) {
+      const singleMode = availableModes[0] as SimulatorMode;
+      onSelectMode(singleMode);
+    }
+  }, [availableModes, onSelectMode]);
+
   if (availableModes.length === 1) {
-    const singleMode = availableModes[0] as SimulatorMode;
-    onSelectMode(singleMode);
     return null;
   }
 

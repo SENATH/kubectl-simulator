@@ -1,4 +1,5 @@
 import type { K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace, K8sCrd, K8sCustomResource, HelmRelease, SimulatorMode } from "@shared/schema";
+import { getAllCrdsFromRegistry, getAllSampleResources } from "@shared/openchoreo";
 
 export class KubectlSimulator {
   private mode: SimulatorMode;
@@ -869,11 +870,11 @@ users:
     let filtered = this.customResources.filter(r => r.kind === kind);
     
     if (crd.scope === "Namespaced" && namespace !== undefined) {
-      filtered = filtered.filter(r => r.namespace === namespace);
+      filtered = filtered.filter(r => r.metadata.namespace === namespace);
     }
 
     if (resourceName) {
-      filtered = filtered.filter(r => r.name === resourceName);
+      filtered = filtered.filter(r => r.metadata.name === resourceName);
       
       if (filtered.length === 0) {
         const namespaceMsg = crd.scope === "Namespaced" && namespace 
@@ -914,8 +915,8 @@ users:
       : "NAME                AGE";
 
     const rows = filtered.map(r => {
-      const base = `${r.name.padEnd(19)} ${this.formatAge(r.creationTimestamp)}`;
-      return hasNamespace ? `${(r.namespace || 'default').padEnd(13)} ${base}` : base;
+      const base = `${r.metadata.name.padEnd(19)} ${this.formatAge(r.metadata.creationTimestamp)}`;
+      return hasNamespace ? `${(r.metadata.namespace || 'default').padEnd(13)} ${base}` : base;
     });
 
     return { output: [header, ...rows].join("\n"), isError: false };
@@ -1467,65 +1468,18 @@ Thank you for installing ${chartName}!`,
   }
 
   private installOpenChoreoCRDs(releaseName: string, timestamp: number) {
-    const coreCRDs: K8sCrd[] = [
-      {
-        name: "organizations.core.choreo.dev",
-        group: "core.choreo.dev",
-        version: "v1",
-        kind: "Organization",
-        plural: "organizations",
-        singular: "organization",
-        scope: "Cluster",
-        installedBy: releaseName,
-        creationTimestamp: timestamp
-      },
-      {
-        name: "projects.core.choreo.dev",
-        group: "core.choreo.dev",
-        version: "v1",
-        kind: "Project",
-        plural: "projects",
-        singular: "project",
-        scope: "Namespaced",
-        installedBy: releaseName,
-        creationTimestamp: timestamp
-      },
-      {
-        name: "components.core.choreo.dev",
-        group: "core.choreo.dev",
-        version: "v1",
-        kind: "Component",
-        plural: "components",
-        singular: "component",
-        scope: "Namespaced",
-        installedBy: releaseName,
-        creationTimestamp: timestamp
-      },
-      {
-        name: "builds.core.choreo.dev",
-        group: "core.choreo.dev",
-        version: "v1",
-        kind: "Build",
-        plural: "builds",
-        singular: "build",
-        scope: "Namespaced",
-        installedBy: releaseName,
-        creationTimestamp: timestamp
-      },
-      {
-        name: "deployableartifacts.core.choreo.dev",
-        group: "core.choreo.dev",
-        version: "v1",
-        kind: "DeployableArtifact",
-        plural: "deployableartifacts",
-        singular: "deployableartifact",
-        scope: "Namespaced",
-        installedBy: releaseName,
-        creationTimestamp: timestamp
-      }
-    ];
+    const crdsFromRegistry = getAllCrdsFromRegistry();
+    const crdsWithMetadata = crdsFromRegistry.map(crd => ({
+      ...crd,
+      installedBy: releaseName,
+      creationTimestamp: timestamp
+    }));
 
-    this.crds.push(...coreCRDs);
+    this.crds.push(...crdsWithMetadata);
+    
+    const defaultNamespace = "openchoreo-control-plane";
+    const sampleResources = getAllSampleResources(defaultNamespace);
+    this.customResources.push(...sampleResources);
   }
 
   private handleCurl(command: string): { output: string; isError: boolean } {
