@@ -3,12 +3,31 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Server, Box, AlertTriangle } from "lucide-react";
 import type { SimulatorMode } from "@shared/schema";
+import { useMemo } from "react";
 
 interface ModeSelectorProps {
   onSelectMode: (mode: SimulatorMode) => void;
 }
 
 export function ModeSelector({ onSelectMode }: ModeSelectorProps) {
+  const availableModes = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const modeParam = params.get('mode');
+    
+    if (modeParam === 'basic') return ['basic'];
+    if (modeParam === 'openchoreo') return ['openchoreo'];
+    return ['basic', 'openchoreo'];
+  }, []);
+
+  const showBasic = availableModes.includes('basic');
+  const showOpenChoreo = availableModes.includes('openchoreo');
+
+  if (availableModes.length === 1) {
+    const singleMode = availableModes[0] as SimulatorMode;
+    onSelectMode(singleMode);
+    return null;
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="max-w-4xl w-full">
@@ -17,8 +36,8 @@ export function ModeSelector({ onSelectMode }: ModeSelectorProps) {
           <p className="text-muted-foreground">Choose your simulation mode</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card className="p-6 hover-elevate cursor-pointer" onClick={() => onSelectMode("basic")} data-testid="card-mode-basic">
+        <div className={`grid gap-6 ${showBasic && showOpenChoreo ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-md mx-auto'}`}>
+          {showBasic && (<Card className="p-6 hover-elevate cursor-pointer" onClick={() => onSelectMode("basic")} data-testid="card-mode-basic">
             <div className="flex flex-col items-center text-center gap-4">
               <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
                 <Server className="w-8 h-8 text-primary" />
@@ -34,9 +53,9 @@ export function ModeSelector({ onSelectMode }: ModeSelectorProps) {
                 Select Basic Mode
               </Button>
             </div>
-          </Card>
+          </Card>)}
 
-          <Card className="p-6 hover-elevate cursor-pointer" onClick={() => onSelectMode("openchoreo")} data-testid="card-mode-openchoreo">
+          {showOpenChoreo && (<Card className="p-6 hover-elevate cursor-pointer" onClick={() => onSelectMode("openchoreo")} data-testid="card-mode-openchoreo">
             <div className="flex flex-col items-center text-center gap-4">
               <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
                 <Box className="w-8 h-8 text-primary" />
@@ -61,7 +80,7 @@ export function ModeSelector({ onSelectMode }: ModeSelectorProps) {
                 Select OpenChoreo Mode
               </Button>
             </div>
-          </Card>
+          </Card>)}
         </div>
       </div>
     </div>
