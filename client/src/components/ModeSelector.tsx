@@ -14,9 +14,9 @@ export function ModeSelector({ onSelectMode }: ModeSelectorProps) {
     const params = new URLSearchParams(window.location.search);
     const modeParam = params.get('mode');
     
-    if (modeParam === 'basic') return ['basic'];
     if (modeParam === 'openchoreo') return ['openchoreo'];
-    return ['basic', 'openchoreo'];
+    if (modeParam === 'both') return ['basic', 'openchoreo'];
+    return ['basic'];
   }, []);
 
   const showBasic = availableModes.includes('basic');

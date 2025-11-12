@@ -344,6 +344,22 @@ export class KubectlSimulator {
       return this.formatCustomResources("DeployableArtifact", allNamespaces ? undefined : namespace, outputFormat, resourceName);
     }
 
+    if (resource === "environments" || resource === "environment" || resource === "env") {
+      return this.formatCustomResources("Environment", allNamespaces ? undefined : namespace, outputFormat, resourceName);
+    }
+
+    if (resource === "resourcetypes" || resource === "resourcetype") {
+      return this.formatCustomResources("ResourceType", undefined, outputFormat, resourceName);
+    }
+
+    if (resource === "dataplanes" || resource === "dataplane" || resource === "dp") {
+      return this.formatCustomResources("DataPlane", undefined, outputFormat, resourceName);
+    }
+
+    if (resource === "idps" || resource === "idp" || resource === "identityproviders" || resource === "identityprovider") {
+      return this.formatCustomResources("IdentityProvider", undefined, outputFormat, resourceName);
+    }
+
     switch (resource) {
       case "nodes":
       case "node":
