@@ -32,7 +32,7 @@ Preferred communication style: Simple, everyday language.
 
 **Key Components**:
 - **ModeSelector**: Initial screen for choosing between Basic and OpenChoreo IDP simulator modes
-  - Supports URL-based feature flags via `?mode=basic|openchoreo` query parameter
+  - Supports URL-based feature flags: no parameter (defaults to basic), `?mode=openchoreo` (OpenChoreo only), `?mode=both` (shows selection screen)
   - Auto-selects mode when only one option is available (via useEffect to prevent render-phase state updates)
   - Conditionally renders mode cards based on URL configuration
 - **Terminal**: Interactive command-line interface with command history and input handling
