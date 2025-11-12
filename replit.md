@@ -32,6 +32,9 @@ Preferred communication style: Simple, everyday language.
 
 **Key Components**:
 - **ModeSelector**: Initial screen for choosing between Basic and OpenChoreo IDP simulator modes
+  - Supports URL-based feature flags via `?mode=basic|openchoreo` query parameter
+  - Auto-selects mode when only one option is available (via useEffect to prevent render-phase state updates)
+  - Conditionally renders mode cards based on URL configuration
 - **Terminal**: Interactive command-line interface with command history and input handling
 - **ClusterOverview**: Displays simulated cluster status, nodes, and resource information (updates live as Helm charts are installed)
 - **CommandReference**: Searchable reference guide for kubectl commands with examples
@@ -57,13 +60,20 @@ Preferred communication style: Simple, everyday language.
 ### Kubernetes Simulation Engine
 
 **Architecture**: Client-side simulation engine (KubectlSimulator class)
-- Maintains mutable simulated state for nodes, pods, deployments, services, namespaces, and Helm releases
+- Maintains mutable simulated state for nodes, pods, deployments, services, namespaces, CRDs, custom resources, and Helm releases
 - Accepts SimulatorMode parameter ("basic" or "openchoreo") at initialization
 - Parses kubectl and Helm command syntax and generates appropriate responses
 - Provides realistic output formatting matching actual kubectl and Helm behavior
 - Supports full CRUD operations: create, delete, scale, and read operations
 - State changes persist during the user session, providing realistic feedback
 - Triggers state change callbacks to update UI components (ClusterOverview) when resources are modified
+
+**CRD Registry System** (`shared/openchoreo.ts`):
+- Centralized registry for OpenChoreo Custom Resource Definitions
+- Each CRD includes descriptor (group, version, kind, plural, singular, scope) and sample factory function
+- Registry-driven architecture allows easy extension of new CRD types
+- Sample factories create realistic instances with proper timestamps, cross-references, and status
+- Helper functions: `getAllCrdsFromRegistry()`, `createSampleResources()`, `getAllSampleResources()`
 
 **Mode-Specific Features**:
 - **Basic Mode**: Standard kubectl simulator with 3-node cluster, basic Kubernetes resources only
@@ -92,11 +102,35 @@ Preferred communication style: Simple, everyday language.
 
 **OpenChoreo Chart Simulations**:
 - **Cilium CNI** (cilium chart): Creates cilium pods in cilium namespace, marks nodes Ready
-- **Control Plane** (openchoreo-control-plane chart): Creates controller-manager, api-server, and cert-manager pods/deployments
+- **Control Plane** (openchoreo-control-plane chart): 
+  - Creates controller-manager, api-server, and cert-manager pods/deployments
+  - Installs 9 OpenChoreo CRDs from registry: Organization, Project, Component, Build, DeployableArtifact, Environment, ResourceType, DataPlane, IdentityProvider
+  - Auto-creates sample custom resource instances for each CRD type with realistic data and cross-references
+  - All resources installed in `openchoreo-control-plane` namespace by default
 - **Data Plane** (openchoreo-data-plane chart): Creates vault, csi-driver, gateway, registry, redis, envoy, and fluent-bit pods
 - **Build Plane** (openchoreo-build-plane chart): Creates argo-workflow-controller pod/deployment for CI/CD capabilities
 
-**Data Models**: TypeScript interfaces for K8s resources (K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace, HelmRelease, SimulatorMode)
+**Custom Resource Management**:
+- **kubectl get crd**: Lists all installed CRDs with support for table/wide/json/yaml output formats
+- **kubectl get <custom-resource-type>**: Query custom resources by kind (projects, environments, etc.)
+  - Supports namespace filtering (-n, --namespace, -A, --all-namespaces)
+  - Supports get-by-name (kubectl get project my-project)
+  - Output formats: table (default), json, yaml
+  - Respects CRD scope (Cluster vs Namespaced)
+  - Validates mutually exclusive flags (-n and --all-namespaces cannot be used together)
+  
+**Sample Custom Resources** (auto-created with control-plane installation):
+- **Organizations** (Cluster-scoped): acme-corp, demo-org
+- **Projects** (Namespaced): web-app, api-backend
+- **Components** (Namespaced): frontend, user-service (linked to projects)
+- **Builds** (Namespaced): frontend-build-1, user-service-build-2 (linked to components)
+- **DeployableArtifacts** (Namespaced): frontend-v1.2.0, user-service-v2.1.0 (linked to builds)
+- **Environments** (Namespaced): dev, staging, production (linked to projects)
+- **ResourceTypes** (Cluster-scoped): postgres-db, redis-cache, s3-bucket
+- **DataPlanes** (Cluster-scoped): default-dp
+- **IdentityProviders** (Cluster-scoped): corporate-sso, github-oauth
+
+**Data Models**: TypeScript interfaces for K8s resources (K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace, K8sCrd, K8sCustomResource, HelmRelease, SimulatorMode)
 
 **Rationale**: Client-side simulation eliminates server dependencies and latency, providing instant command execution. Mode-based initialization allows targeted learning experiences. Mutable state allows users to experiment with create/delete/scale operations and see realistic results. Helm integration enables users to practice OpenChoreo platform installation workflows. This approach prioritizes learning and practice over production-realistic architecture.
 
@@ -108,6 +142,7 @@ Preferred communication style: Simple, everyday language.
 - UI components (client/src/components) separate from page layouts (client/src/pages)
 - Business logic (kubectl-simulator.ts) isolated from presentation
 - Shared types (shared/schema.ts) accessible to both client and server
+- CRD registry (shared/openchoreo.ts) provides centralized OpenChoreo resource definitions and sample factories
 
 **Code Organization**:
 ```
@@ -115,10 +150,12 @@ client/
   src/
     components/ - Reusable UI components
     pages/ - Route-level page components
-    lib/ - Utilities and shared logic
+    lib/ - Utilities and shared logic (kubectl-simulator.ts)
     hooks/ - Custom React hooks
 server/ - Backend Express application
-shared/ - Types and schemas used by both client and server
+shared/ 
+  - schema.ts - Core type definitions for K8s resources
+  - openchoreo.ts - CRD registry with descriptors and sample factories
 ```
 
 **Rationale**: Clear separation enables independent testing, easier refactoring, and better code reusability. The shared folder prevents type duplication between frontend and backend.
