@@ -22,7 +22,7 @@ export interface CrdRegistryEntry {
 export const OPENCHOREO_CRDS: Record<string, CrdRegistryEntry> = {
   organization: {
     descriptor: {
-      group: "choreo.dev",
+      group: "openchoreo.dev",
       version: "v1alpha1",
       kind: "Organization",
       plural: "organizations",
@@ -32,39 +32,33 @@ export const OPENCHOREO_CRDS: Record<string, CrdRegistryEntry> = {
     },
     sampleFactory: () => [
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "Organization",
         metadata: {
-          name: "acme-corp",
+          name: "default",
           namespace: "",
-          creationTimestamp: Date.now() - (10 * 24 * 60 * 60 * 1000) // 10 days ago
+          creationTimestamp: Date.now() - (10 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Default Organization",
+            "openchoreo.dev/description": "This is the default organization for this setup"
+          }
         },
-        spec: {
-          displayName: "ACME Corporation",
-          description: "Enterprise organization for ACME products"
-        },
-        status: { phase: "Active" }
-      },
-      {
-        apiVersion: "choreo.dev/v1alpha1",
-        kind: "Organization",
-        metadata: {
-          name: "demo-org",
-          namespace: "",
-          creationTimestamp: Date.now() - (15 * 24 * 60 * 60 * 1000) // 15 days ago
-        },
-        spec: {
-          displayName: "Demo Organization",
-          description: "Sample organization for testing"
-        },
-        status: { phase: "Active" }
+        spec: {},
+        status: {
+          observedGeneration: 1,
+          namespace: "default",
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "NamespaceProvisioned", status: "True" }
+          ]
+        }
       }
     ]
   },
 
   project: {
     descriptor: {
-      group: "choreo.dev",
+      group: "openchoreo.dev",
       version: "v1alpha1",
       kind: "Project",
       plural: "projects",
@@ -74,41 +68,59 @@ export const OPENCHOREO_CRDS: Record<string, CrdRegistryEntry> = {
     },
     sampleFactory: (namespace = "default") => [
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "Project",
         metadata: {
-          name: "web-app",
+          name: "internal-apps",
           namespace,
-          creationTimestamp: Date.now() - (8 * 24 * 60 * 60 * 1000) // 8 days ago
+          creationTimestamp: Date.now() - (8 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Internal Applications",
+            "openchoreo.dev/description": "This project contains components for internal applications"
+          }
         },
         spec: {
-          displayName: "Web Application",
-          description: "Main customer-facing web application",
-          organizationRef: { name: "acme-corp" }
+          deploymentPipelineRef: "default-deployment-pipeline"
         },
-        status: { phase: "Active" }
+        status: {
+          observedGeneration: 1,
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "Reconciled", status: "True" },
+            { type: "NamespaceProvisioned", status: "True" }
+          ]
+        }
       },
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "Project",
         metadata: {
-          name: "api-backend",
+          name: "customer-services",
           namespace,
-          creationTimestamp: Date.now() - (7 * 24 * 60 * 60 * 1000) // 7 days ago
+          creationTimestamp: Date.now() - (7 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Customer Services",
+            "openchoreo.dev/description": "Customer-facing microservices and APIs"
+          }
         },
         spec: {
-          displayName: "API Backend",
-          description: "REST API backend services",
-          organizationRef: { name: "acme-corp" }
+          deploymentPipelineRef: "default-deployment-pipeline"
         },
-        status: { phase: "Active" }
+        status: {
+          observedGeneration: 1,
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "Reconciled", status: "True" },
+            { type: "NamespaceProvisioned", status: "True" }
+          ]
+        }
       }
     ]
   },
 
   component: {
     descriptor: {
-      group: "choreo.dev",
+      group: "openchoreo.dev",
       version: "v1alpha1",
       kind: "Component",
       plural: "components",
@@ -118,45 +130,91 @@ export const OPENCHOREO_CRDS: Record<string, CrdRegistryEntry> = {
     },
     sampleFactory: (namespace = "default") => [
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "Component",
         metadata: {
-          name: "frontend",
+          name: "customer-service",
           namespace,
-          creationTimestamp: Date.now() - (5 * 24 * 60 * 60 * 1000) // 5 days ago
+          creationTimestamp: Date.now() - (5 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Customer Service",
+            "openchoreo.dev/description": "Customer management REST API service"
+          }
         },
         spec: {
-          displayName: "Frontend UI",
-          description: "React-based frontend application",
-          projectRef: { name: "web-app", namespace },
-          componentType: "web",
-          repository: "https://github.com/acme-corp/frontend"
+          owner: {
+            projectName: "customer-services"
+          },
+          type: "Service",
+          build: {
+            repository: {
+              url: "https://github.com/myorg/customer-service",
+              revision: {
+                branch: "main"
+              },
+              appPath: "."
+            },
+            templateRef: {
+              name: "docker",
+              parameters: [
+                { name: "docker-context", value: "." },
+                { name: "dockerfile-path", value: "./Dockerfile" }
+              ]
+            }
+          }
         },
-        status: { phase: "Ready" }
+        status: {
+          observedGeneration: 1,
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "Reconciled", status: "True" }
+          ]
+        }
       },
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "Component",
         metadata: {
-          name: "user-service",
+          name: "frontend-app",
           namespace,
-          creationTimestamp: Date.now() - (5 * 24 * 60 * 60 * 1000) // 5 days ago
+          creationTimestamp: Date.now() - (5 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Frontend Application",
+            "openchoreo.dev/description": "React-based web application"
+          }
         },
         spec: {
-          displayName: "User Service",
-          description: "User management microservice",
-          projectRef: { name: "api-backend", namespace },
-          componentType: "service",
-          repository: "https://github.com/acme-corp/user-service"
+          owner: {
+            projectName: "internal-apps"
+          },
+          type: "WebApplication",
+          build: {
+            repository: {
+              url: "https://github.com/myorg/frontend",
+              revision: {
+                branch: "develop"
+              },
+              appPath: "./webapp"
+            },
+            templateRef: {
+              name: "google-cloud-buildpacks"
+            }
+          }
         },
-        status: { phase: "Ready" }
+        status: {
+          observedGeneration: 1,
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "Reconciled", status: "True" }
+          ]
+        }
       }
     ]
   },
 
   build: {
     descriptor: {
-      group: "choreo.dev",
+      group: "openchoreo.dev",
       version: "v1alpha1",
       kind: "Build",
       plural: "builds",
@@ -166,41 +224,91 @@ export const OPENCHOREO_CRDS: Record<string, CrdRegistryEntry> = {
     },
     sampleFactory: (namespace = "default") => [
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "Build",
         metadata: {
-          name: "frontend-build-1",
+          name: "customer-service-build-abc123",
           namespace,
-          creationTimestamp: Date.now() - (2 * 24 * 60 * 60 * 1000) // 2 days ago
+          creationTimestamp: Date.now() - (2 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Customer Service Build #abc123",
+            "openchoreo.dev/description": "Docker build for customer-service component"
+          }
         },
         spec: {
-          componentRef: { name: "frontend", namespace },
-          gitCommit: "a1b2c3d",
-          buildType: "container"
+          owner: {
+            projectName: "customer-services",
+            componentName: "customer-service"
+          },
+          repository: {
+            url: "https://github.com/myorg/customer-service",
+            revision: {
+              branch: "main",
+              commit: "abc123def456"
+            },
+            appPath: "."
+          },
+          templateRef: {
+            name: "docker",
+            parameters: [
+              { name: "docker-context", value: "." },
+              { name: "dockerfile-path", value: "./Dockerfile" }
+            ]
+          }
         },
-        status: { phase: "Succeeded", completedAt: Date.now() - (2 * 24 * 60 * 60 * 1000) }
+        status: {
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "Building", status: "False" },
+            { type: "Failed", status: "False" }
+          ],
+          imageStatus: {
+            image: "docker.io/myorg/customer-service@sha256:abc123..."
+          }
+        }
       },
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "Build",
         metadata: {
-          name: "user-service-build-2",
+          name: "frontend-build-xyz789",
           namespace,
-          creationTimestamp: Date.now() - (1 * 24 * 60 * 60 * 1000) // 1 day ago
+          creationTimestamp: Date.now() - (1 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Frontend Build #xyz789"
+          }
         },
         spec: {
-          componentRef: { name: "user-service", namespace },
-          gitCommit: "e4f5g6h",
-          buildType: "container"
+          owner: {
+            projectName: "internal-apps",
+            componentName: "frontend-app"
+          },
+          repository: {
+            url: "https://github.com/myorg/frontend",
+            revision: {
+              branch: "develop"
+            },
+            appPath: "./webapp"
+          },
+          templateRef: {
+            name: "google-cloud-buildpacks"
+          }
         },
-        status: { phase: "Succeeded", completedAt: Date.now() - (1 * 24 * 60 * 60 * 1000) }
+        status: {
+          conditions: [
+            { type: "Ready", status: "True" }
+          ],
+          imageStatus: {
+            image: "docker.io/myorg/frontend@sha256:xyz789..."
+          }
+        }
       }
     ]
   },
 
   deployableartifact: {
     descriptor: {
-      group: "choreo.dev",
+      group: "openchoreo.dev",
       version: "v1alpha1",
       kind: "DeployableArtifact",
       plural: "deployableartifacts",
@@ -210,41 +318,41 @@ export const OPENCHOREO_CRDS: Record<string, CrdRegistryEntry> = {
     },
     sampleFactory: (namespace = "default") => [
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "DeployableArtifact",
         metadata: {
-          name: "frontend-v1.2.0",
+          name: "customer-service-v1.2.0",
           namespace,
-          creationTimestamp: Date.now() - (1 * 24 * 60 * 60 * 1000) // 1 day ago
+          creationTimestamp: Date.now() - (1 * 24 * 60 * 60 * 1000)
         },
         spec: {
-          buildRef: { name: "frontend-build-1", namespace },
-          version: "v1.2.0",
-          imageRef: "acme/frontend:v1.2.0"
+          image: "docker.io/myorg/customer-service@sha256:abc123..."
         },
-        status: { phase: "Available" }
+        status: {
+          phase: "Available"
+        }
       },
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "DeployableArtifact",
         metadata: {
-          name: "user-service-v2.1.0",
+          name: "frontend-v2.0.0",
           namespace,
-          creationTimestamp: Date.now() - (1 * 24 * 60 * 60 * 1000) // 1 day ago
+          creationTimestamp: Date.now() - (1 * 24 * 60 * 60 * 1000)
         },
         spec: {
-          buildRef: { name: "user-service-build-2", namespace },
-          version: "v2.1.0",
-          imageRef: "acme/user-service:v2.1.0"
+          image: "docker.io/myorg/frontend@sha256:xyz789..."
         },
-        status: { phase: "Available" }
+        status: {
+          phase: "Available"
+        }
       }
     ]
   },
 
   environment: {
     descriptor: {
-      group: "choreo.dev",
+      group: "openchoreo.dev",
       version: "v1alpha1",
       kind: "Environment",
       plural: "environments",
@@ -254,151 +362,313 @@ export const OPENCHOREO_CRDS: Record<string, CrdRegistryEntry> = {
     },
     sampleFactory: (namespace = "default") => [
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "Environment",
         metadata: {
-          name: "dev",
+          name: "development",
           namespace,
-          creationTimestamp: Date.now() - (12 * 24 * 60 * 60 * 1000) // 12 days ago
+          creationTimestamp: Date.now() - (12 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Development",
+            "openchoreo.dev/description": "Development environment for testing new features"
+          }
         },
         spec: {
-          displayName: "Development",
-          description: "Development environment",
-          projectRef: { name: "web-app", namespace },
-          type: "non-production"
+          dataPlaneRef: "dev-dataplane",
+          isProduction: false,
+          gateway: {
+            dnsPrefix: "dev",
+            security: {
+              remoteJwks: {
+                uri: "https://auth.example.com/.well-known/jwks.json"
+              }
+            }
+          }
         },
-        status: { phase: "Ready" }
+        status: {
+          observedGeneration: 1,
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "DataPlaneConnected", status: "True" },
+            { type: "GatewayConfigured", status: "True" }
+          ]
+        }
       },
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "Environment",
         metadata: {
           name: "staging",
           namespace,
-          creationTimestamp: Date.now() - (10 * 24 * 60 * 60 * 1000) // 10 days ago
+          creationTimestamp: Date.now() - (10 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Staging",
+            "openchoreo.dev/description": "Pre-production staging environment"
+          }
         },
         spec: {
-          displayName: "Staging",
-          description: "Staging environment for testing",
-          projectRef: { name: "web-app", namespace },
-          type: "non-production"
+          dataPlaneRef: "staging-dataplane",
+          isProduction: false,
+          gateway: {
+            dnsPrefix: "staging"
+          }
         },
-        status: { phase: "Ready" }
+        status: {
+          observedGeneration: 1,
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "DataPlaneConnected", status: "True" },
+            { type: "GatewayConfigured", status: "True" }
+          ]
+        }
       },
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "Environment",
         metadata: {
           name: "production",
           namespace,
-          creationTimestamp: Date.now() - (10 * 24 * 60 * 60 * 1000) // 10 days ago
+          creationTimestamp: Date.now() - (10 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Production",
+            "openchoreo.dev/description": "Production environment"
+          }
         },
         spec: {
-          displayName: "Production",
-          description: "Production environment",
-          projectRef: { name: "web-app", namespace },
-          type: "production"
+          dataPlaneRef: "prod-dataplane",
+          isProduction: true,
+          gateway: {
+            dnsPrefix: "api",
+            security: {
+              remoteJwks: {
+                uri: "https://auth.example.com/.well-known/jwks.json"
+              }
+            }
+          }
         },
-        status: { phase: "Ready" }
+        status: {
+          observedGeneration: 1,
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "DataPlaneConnected", status: "True" },
+            { type: "GatewayConfigured", status: "True" }
+          ]
+        }
       }
     ]
   },
 
   resourcetype: {
     descriptor: {
-      group: "choreo.dev",
+      group: "openchoreo.dev",
       version: "v1alpha1",
       kind: "ResourceType",
       plural: "resourcetypes",
       singular: "resourcetype",
       scope: "Cluster",
-      categories: ["openchoreo"]
+      categories: ["openchoreo", "platform"]
     },
     sampleFactory: () => [
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "ResourceType",
         metadata: {
           name: "postgres-db",
           namespace: "",
-          creationTimestamp: Date.now() - (20 * 24 * 60 * 60 * 1000) // 20 days ago
+          creationTimestamp: Date.now() - (20 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "PostgreSQL Database",
+            "openchoreo.dev/description": "Managed PostgreSQL database instance"
+          }
         },
         spec: {
-          displayName: "PostgreSQL Database",
-          description: "Managed PostgreSQL database instance",
           category: "database",
           provider: "aws-rds"
         },
-        status: { phase: "Available" }
+        status: {
+          phase: "Available"
+        }
       },
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "ResourceType",
         metadata: {
           name: "redis-cache",
           namespace: "",
-          creationTimestamp: Date.now() - (20 * 24 * 60 * 60 * 1000) // 20 days ago
+          creationTimestamp: Date.now() - (20 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Redis Cache",
+            "openchoreo.dev/description": "Managed Redis cache instance"
+          }
         },
         spec: {
-          displayName: "Redis Cache",
-          description: "Managed Redis cache instance",
           category: "cache",
           provider: "aws-elasticache"
         },
-        status: { phase: "Available" }
+        status: {
+          phase: "Available"
+        }
       },
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "ResourceType",
         metadata: {
           name: "s3-bucket",
           namespace: "",
-          creationTimestamp: Date.now() - (20 * 24 * 60 * 60 * 1000) // 20 days ago
+          creationTimestamp: Date.now() - (20 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "S3 Bucket",
+            "openchoreo.dev/description": "AWS S3 object storage bucket"
+          }
         },
         spec: {
-          displayName: "S3 Bucket",
-          description: "AWS S3 object storage bucket",
           category: "storage",
           provider: "aws-s3"
         },
-        status: { phase: "Available" }
+        status: {
+          phase: "Available"
+        }
       }
     ]
   },
 
   dataplane: {
     descriptor: {
-      group: "choreo.dev",
+      group: "openchoreo.dev",
       version: "v1alpha1",
       kind: "DataPlane",
       plural: "dataplanes",
       singular: "dataplane",
-      scope: "Cluster",
+      scope: "Namespaced",
       categories: ["openchoreo", "infrastructure"]
     },
-    sampleFactory: () => [
+    sampleFactory: (namespace = "default") => [
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "DataPlane",
         metadata: {
-          name: "default-dp",
-          namespace: "",
-          creationTimestamp: Date.now() - (15 * 24 * 60 * 60 * 1000) // 15 days ago
+          name: "dev-dataplane",
+          namespace,
+          creationTimestamp: Date.now() - (15 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Development Data Plane",
+            "openchoreo.dev/description": "Development Kubernetes cluster for testing"
+          }
         },
         spec: {
-          displayName: "Default Data Plane",
-          description: "Primary data plane for application workloads",
-          region: "us-west-2",
-          clusterRef: { name: "production-cluster" }
+          kubernetesCluster: {
+            name: "dev-cluster",
+            credentials: {
+              apiServerURL: "https://k8s-dev.example.com:6443",
+              caCert: "LS0tLS1CRUdJTi...",
+              clientCert: "LS0tLS1CRUdJTi...",
+              clientKey: "LS0tLS1CRUdJTi..."
+            }
+          },
+          registry: {
+            prefix: "docker.io/myorg",
+            secretRef: "registry-credentials"
+          },
+          gateway: {
+            publicVirtualHost: "dev.example.com",
+            organizationVirtualHost: "dev-internal.example.com"
+          }
         },
-        status: { phase: "Ready", health: "Healthy" }
+        status: {
+          observedGeneration: 1,
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "Connected", status: "True" },
+            { type: "GatewayProvisioned", status: "True" }
+          ]
+        }
+      },
+      {
+        apiVersion: "openchoreo.dev/v1alpha1",
+        kind: "DataPlane",
+        metadata: {
+          name: "staging-dataplane",
+          namespace,
+          creationTimestamp: Date.now() - (15 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Staging Data Plane",
+            "openchoreo.dev/description": "Staging Kubernetes cluster for pre-production testing"
+          }
+        },
+        spec: {
+          kubernetesCluster: {
+            name: "staging-cluster",
+            credentials: {
+              apiServerURL: "https://k8s-staging.example.com:6443",
+              caCert: "LS0tLS1CRUdJTi...",
+              clientCert: "LS0tLS1CRUdJTi...",
+              clientKey: "LS0tLS1CRUdJTi..."
+            }
+          },
+          registry: {
+            prefix: "docker.io/myorg",
+            secretRef: "registry-credentials"
+          },
+          gateway: {
+            publicVirtualHost: "staging.example.com",
+            organizationVirtualHost: "staging-internal.example.com"
+          }
+        },
+        status: {
+          observedGeneration: 1,
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "Connected", status: "True" },
+            { type: "GatewayProvisioned", status: "True" }
+          ]
+        }
+      },
+      {
+        apiVersion: "openchoreo.dev/v1alpha1",
+        kind: "DataPlane",
+        metadata: {
+          name: "prod-dataplane",
+          namespace,
+          creationTimestamp: Date.now() - (15 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Production Data Plane",
+            "openchoreo.dev/description": "Production Kubernetes cluster for workloads"
+          }
+        },
+        spec: {
+          kubernetesCluster: {
+            name: "production-cluster",
+            credentials: {
+              apiServerURL: "https://k8s-api.example.com:6443",
+              caCert: "LS0tLS1CRUdJTi...",
+              clientCert: "LS0tLS1CRUdJTi...",
+              clientKey: "LS0tLS1CRUdJTi..."
+            }
+          },
+          registry: {
+            prefix: "docker.io/myorg",
+            secretRef: "registry-credentials"
+          },
+          gateway: {
+            publicVirtualHost: "api.example.com",
+            organizationVirtualHost: "internal.example.com"
+          }
+        },
+        status: {
+          observedGeneration: 1,
+          conditions: [
+            { type: "Ready", status: "True" },
+            { type: "Connected", status: "True" },
+            { type: "GatewayProvisioned", status: "True" }
+          ]
+        }
       }
     ]
   },
 
   idp: {
     descriptor: {
-      group: "choreo.dev",
+      group: "openchoreo.dev",
       version: "v1alpha1",
       kind: "IdentityProvider",
       plural: "idps",
@@ -408,36 +678,46 @@ export const OPENCHOREO_CRDS: Record<string, CrdRegistryEntry> = {
     },
     sampleFactory: () => [
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "IdentityProvider",
         metadata: {
           name: "corporate-sso",
           namespace: "",
-          creationTimestamp: Date.now() - (30 * 24 * 60 * 60 * 1000) // 30 days ago
+          creationTimestamp: Date.now() - (30 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "Corporate SSO",
+            "openchoreo.dev/description": "SAML-based corporate identity provider"
+          }
         },
         spec: {
-          displayName: "Corporate SSO",
-          description: "SAML-based corporate identity provider",
           type: "saml",
           issuer: "https://sso.acme-corp.com"
         },
-        status: { phase: "Active", connected: true }
+        status: {
+          phase: "Active",
+          connected: true
+        }
       },
       {
-        apiVersion: "choreo.dev/v1alpha1",
+        apiVersion: "openchoreo.dev/v1alpha1",
         kind: "IdentityProvider",
         metadata: {
           name: "github-oauth",
           namespace: "",
-          creationTimestamp: Date.now() - (25 * 24 * 60 * 60 * 1000) // 25 days ago
+          creationTimestamp: Date.now() - (25 * 24 * 60 * 60 * 1000),
+          annotations: {
+            "openchoreo.dev/display-name": "GitHub OAuth",
+            "openchoreo.dev/description": "OAuth integration with GitHub"
+          }
         },
         spec: {
-          displayName: "GitHub OAuth",
-          description: "OAuth integration with GitHub",
           type: "oauth2",
           issuer: "https://github.com"
         },
-        status: { phase: "Active", connected: true }
+        status: {
+          phase: "Active",
+          connected: true
+        }
       }
     ]
   }
@@ -456,7 +736,7 @@ export function getCrdFromRegistry(kind: string): K8sCrd | null {
     plural: descriptor.plural,
     singular: descriptor.singular,
     scope: descriptor.scope,
-    creationTimestamp: Date.now() - (30 * 24 * 60 * 60 * 1000) // Assume installed 30 days ago
+    creationTimestamp: Date.now() - (30 * 24 * 60 * 60 * 1000)
   };
 }
 
