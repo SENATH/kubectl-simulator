@@ -69,11 +69,12 @@ Preferred communication style: Simple, everyday language.
 - Triggers state change callbacks to update UI components (ClusterOverview) when resources are modified
 
 **CRD Registry System** (`shared/openchoreo.ts`):
-- Centralized registry for OpenChoreo Custom Resource Definitions
+- Centralized registry for OpenChoreo Custom Resource Definitions using official openchoreo.dev/v1alpha1 API group
 - Each CRD includes descriptor (group, version, kind, plural, singular, scope) and sample factory function
 - Registry-driven architecture allows easy extension of new CRD types
-- Sample factories create realistic instances with proper timestamps, cross-references, and status
+- Sample factories create realistic instances with proper timestamps, cross-references, and status following official API specifications
 - Helper functions: `getAllCrdsFromRegistry()`, `createSampleResources()`, `getAllSampleResources()`
+- All CRDs migrated from choreo.dev to openchoreo.dev API group per v0.3.0+ specifications
 
 **Mode-Specific Features**:
 - **Basic Mode**: Standard kubectl simulator with 3-node cluster, basic Kubernetes resources only
@@ -104,8 +105,8 @@ Preferred communication style: Simple, everyday language.
 - **Cilium CNI** (cilium chart): Creates cilium pods in cilium namespace, marks nodes Ready
 - **Control Plane** (openchoreo-control-plane chart): 
   - Creates controller-manager, api-server, and cert-manager pods/deployments
-  - Installs 9 OpenChoreo CRDs from registry: Organization, Project, Component, Build, DeployableArtifact, Environment, ResourceType, DataPlane, IdentityProvider
-  - Auto-creates sample custom resource instances for each CRD type with realistic data and cross-references
+  - Installs 9 OpenChoreo CRDs from registry (openchoreo.dev/v1alpha1): Organization, Project, Component, Build, DeployableArtifact, Environment, ResourceType, DataPlane, IdentityProvider
+  - Auto-creates sample custom resource instances for each CRD type with realistic API-compliant data and cross-references
   - All resources installed in `openchoreo-control-plane` namespace by default
 - **Data Plane** (openchoreo-data-plane chart): Creates vault, csi-driver, gateway, registry, redis, envoy, and fluent-bit pods
 - **Build Plane** (openchoreo-build-plane chart): Creates argo-workflow-controller pod/deployment for CI/CD capabilities
@@ -119,16 +120,32 @@ Preferred communication style: Simple, everyday language.
   - Respects CRD scope (Cluster vs Namespaced)
   - Validates mutually exclusive flags (-n and --all-namespaces cannot be used together)
   
-**Sample Custom Resources** (auto-created with control-plane installation):
-- **Organizations** (Cluster-scoped): acme-corp, demo-org
-- **Projects** (Namespaced): web-app, api-backend
-- **Components** (Namespaced): frontend, user-service (linked to projects)
-- **Builds** (Namespaced): frontend-build-1, user-service-build-2 (linked to components)
-- **DeployableArtifacts** (Namespaced): frontend-v1.2.0, user-service-v2.1.0 (linked to builds)
-- **Environments** (Namespaced): dev, staging, production (linked to projects)
+**Sample Custom Resources** (auto-created with control-plane installation, using openchoreo.dev/v1alpha1):
+- **Organizations** (Cluster-scoped): default
+  - Empty spec per API, status includes namespace and observedGeneration
+  - Annotations: openchoreo.dev/display-name, openchoreo.dev/description
+- **Projects** (Namespaced): internal-apps, customer-services
+  - Spec includes required deploymentPipelineRef field
+  - Display name/description moved to annotations per API specification
+- **Components** (Namespaced): customer-service, frontend-app
+  - Spec includes owner.projectName, type (Service|WebApplication|ScheduledTask), optional build config
+  - Properly linked to parent Projects via owner.projectName
+- **Builds** (Namespaced): customer-service-build-abc123, frontend-build-xyz789
+  - Spec includes owner (projectName + componentName), repository, templateRef
+  - Linked to Components and Projects via owner references
+- **DeployableArtifacts** (Namespaced): customer-service-v1.2.0, frontend-v2.0.0
+  - Simplified spec with image field (environment-independent configuration)
+- **Environments** (Namespaced): development, staging, production
+  - Spec includes dataPlaneRef, isProduction (boolean), gateway configuration
+  - Cross-referenced to matching DataPlane resources
 - **ResourceTypes** (Cluster-scoped): postgres-db, redis-cache, s3-bucket
-- **DataPlanes** (Cluster-scoped): default-dp
+  - Spec includes category and provider fields
+- **DataPlanes** (Namespaced): dev-dataplane, staging-dataplane, prod-dataplane
+  - Changed to Namespaced scope per official API specification
+  - Spec includes kubernetesCluster, registry, and gateway configurations
+  - Matches Environment dataPlaneRef values for coherent topology
 - **IdentityProviders** (Cluster-scoped): corporate-sso, github-oauth
+  - Spec includes type (saml|oauth2) and issuer fields
 
 **Data Models**: TypeScript interfaces for K8s resources (K8sNode, K8sPod, K8sDeployment, K8sService, K8sNamespace, K8sCrd, K8sCustomResource, HelmRelease, SimulatorMode)
 
